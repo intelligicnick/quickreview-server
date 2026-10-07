@@ -1,0 +1,31 @@
+import { IsEmail, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+
+export class TokenDto {
+  @IsString()
+  @MinLength(16)
+  token: string;
+}
+
+export class RefreshDto {
+  @IsOptional()
+  @IsString()
+  @MinLength(16)
+  refreshToken?: string;
+}
+
+export class ForgotPasswordDto {
+  @IsEmail()
+  @MaxLength(254)
+  email: string;
+}
+
+export class ResetPasswordDto {
+  @IsString()
+  @MinLength(16)
+  token: string;
+
+  @IsString()
+  @MinLength(8)
+  @MaxLength(128)
+  password: string;
+}

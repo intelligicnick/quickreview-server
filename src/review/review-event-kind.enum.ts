@@ -1,0 +1,6 @@
+export enum ReviewEventKind {
+  PAGE_VIEW = 'PAGE_VIEW',
+  STAR = 'STAR',
+  PRIVATE_FEEDBACK = 'PRIVATE_FEEDBACK',
+  GOOGLE_OPEN = 'GOOGLE_OPEN',
+}

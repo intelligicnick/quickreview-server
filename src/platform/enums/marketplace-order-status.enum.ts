@@ -1,0 +1,8 @@
+export enum MarketplaceOrderStatus {
+  PLACED = 'PLACED',
+  CONFIRMED = 'CONFIRMED',
+  IN_PRODUCTION = 'IN_PRODUCTION',
+  SHIPPED = 'SHIPPED',
+  DELIVERED = 'DELIVERED',
+  CANCELLED = 'CANCELLED',
+}

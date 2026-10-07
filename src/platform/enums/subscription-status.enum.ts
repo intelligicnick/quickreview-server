@@ -1,0 +1,7 @@
+export enum SubscriptionStatus {
+  PENDING_PAYMENT = 'PENDING_PAYMENT',
+  ACTIVE = 'ACTIVE',
+  QUEUED = 'QUEUED',
+  EXPIRED = 'EXPIRED',
+  CANCELLED = 'CANCELLED',
+}
