@@ -25,7 +25,7 @@ async function bootstrap() {
   app.useGlobalFilters(new HttpExceptionFilter());
   app.useGlobalInterceptors(new TransformInterceptor());
 
-  const origin = process.env.FRONTEND_ORIGIN ?? 'http://localhost:5173';
+  const origin = (process.env.FRONTEND_ORIGIN ?? 'http://localhost:5173').replace(/\/$/, '');
   app.enableCors({
     origin,
     credentials: true,
