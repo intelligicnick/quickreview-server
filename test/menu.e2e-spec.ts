@@ -77,10 +77,16 @@ describe('QuickMenu (Phase 8)', () => {
       .send({ name: 'Starters' })
       .expect(201);
 
+    const variants = category.body.data.priceVariants as { id: string }[];
     await request(app.getHttpServer())
       .post(`/api/locations/${locationId}/quickmenu/categories/${category.body.data.id}/items`)
       .set('Authorization', `Bearer ${token}`)
-      .send({ name: 'Soup', priceInr: 120, isNonVeg: false })
+      .send({
+        name: 'Soup',
+        priceInr: 120,
+        isNonVeg: false,
+        variantPrices: variants.map((v) => ({ variantId: v.id, priceInr: 120 })),
+      })
       .expect(201);
 
     const publicMenu = await request(app.getHttpServer())
