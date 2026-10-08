@@ -93,6 +93,12 @@ export class AuthService {
     return this.issueSession(user);
   }
 
+  /** Resolve user from refresh cookie/body without consuming the token. */
+  async userIdForRefresh(rawRefresh: string): Promise<string | null> {
+    const token = await this.findUsableToken(rawRefresh, AuthTokenType.REFRESH);
+    return token?.userId ?? null;
+  }
+
   async logout(userId: string, rawRefresh?: string): Promise<{ loggedOut: true }> {
     if (rawRefresh) {
       const token = await this.findUsableToken(rawRefresh, AuthTokenType.REFRESH);

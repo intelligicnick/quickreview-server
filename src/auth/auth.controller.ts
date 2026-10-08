@@ -49,16 +49,17 @@ export class AuthController {
     return this.toClient(payload);
   }
 
-  @AllowUnverified()
+  @Public()
   @Post('logout')
   @HttpCode(HttpStatus.OK)
-  async logout(
-    @CurrentUser() user: User,
-    @Req() req: Request,
-    @Res({ passthrough: true }) res: Response,
-  ) {
+  async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const raw = this.readRefresh(req);
-    await this.authService.logout(user.id, raw);
+    if (raw) {
+      const userId = await this.authService.userIdForRefresh(raw);
+      if (userId) {
+        await this.authService.logout(userId, raw);
+      }
+    }
     this.clearRefreshCookie(res);
     return { loggedOut: true };
   }
