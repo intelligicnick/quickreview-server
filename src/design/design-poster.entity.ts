@@ -44,13 +44,13 @@ export class DesignPoster {
   @Column({ type: 'varchar', length: 64, default: 'image/png' })
   mimeType: string;
 
-  @Column({ type: 'bytea' })
+  @Column({ type: 'blob' })
   imageData: Buffer;
 
   @Column({ type: 'varchar', length: 8, default: '9:16' })
   aspectRatio: string;
 
-  @CreateDateColumn({ type: 'timestamptz' })
+  @CreateDateColumn()
   createdAt: Date;
 
   @BeforeInsert()

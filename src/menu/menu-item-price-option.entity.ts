@@ -32,13 +32,13 @@ export class MenuItemPriceOption {
   @Column({ type: 'int', default: 0 })
   sortOrder: number;
 
-  @Column({ type: 'double precision' })
+  @Column({ type: 'double' })
   priceInr: number;
 
-  @CreateDateColumn({ type: 'timestamptz' })
+  @CreateDateColumn()
   createdAt: Date;
 
-  @UpdateDateColumn({ type: 'timestamptz' })
+  @UpdateDateColumn()
   updatedAt: Date;
 
   @BeforeInsert()

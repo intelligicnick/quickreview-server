@@ -36,10 +36,10 @@ export class MenuCategoryPriceVariant {
   @OneToMany(() => MenuItemVariantPrice, (row) => row.variant)
   itemPrices: MenuItemVariantPrice[];
 
-  @CreateDateColumn({ type: 'timestamptz' })
+  @CreateDateColumn()
   createdAt: Date;
 
-  @UpdateDateColumn({ type: 'timestamptz' })
+  @UpdateDateColumn()
   updatedAt: Date;
 
   @BeforeInsert()

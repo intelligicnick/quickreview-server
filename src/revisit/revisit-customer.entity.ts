@@ -25,19 +25,19 @@ export class RevisitCustomer {
   @Column({ type: 'varchar', length: 120, nullable: true })
   name: string | null;
 
-  @Column({ type: 'timestamptz', nullable: true })
+  @Column({ type: 'datetime', nullable: true })
   firstVisitAt: Date | null;
 
-  @Column({ type: 'timestamptz', nullable: true })
+  @Column({ type: 'datetime', nullable: true })
   lastVisitAt: Date | null;
 
   @Column({ type: 'int', default: 0 })
   totalVisits: number;
 
-  @CreateDateColumn({ type: 'timestamptz' })
+  @CreateDateColumn()
   createdAt: Date;
 
-  @UpdateDateColumn({ type: 'timestamptz' })
+  @UpdateDateColumn()
   updatedAt: Date;
 
   @BeforeInsert()

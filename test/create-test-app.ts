@@ -46,10 +46,8 @@ export async function createTestApp(): Promise<{
     imports: [
       ConfigModule.forRoot({ isGlobal: true, ignoreEnvFile: true }),
       TypeOrmModule.forRoot({
-        type: 'postgres',
-        url:
-          process.env.TEST_DATABASE_URL ??
-          'postgresql://localhost:5432/quickreview_test',
+        type: 'better-sqlite3',
+        database: ':memory:',
         entities: ENTITIES,
         synchronize: true,
         dropSchema: true,

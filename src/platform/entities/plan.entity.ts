@@ -38,13 +38,13 @@ export class Plan {
   @Column({ type: 'int', default: 0 })
   sortOrder: number;
 
-  @CreateDateColumn({ type: 'timestamptz' })
+  @CreateDateColumn()
   createdAt: Date;
 
-  @UpdateDateColumn({ type: 'timestamptz' })
+  @UpdateDateColumn()
   updatedAt: Date;
 
-  @DeleteDateColumn({ type: 'timestamptz' })
+  @DeleteDateColumn()
   deletedAt: Date | null;
 
   @BeforeInsert()

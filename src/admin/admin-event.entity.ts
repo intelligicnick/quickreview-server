@@ -16,7 +16,7 @@ export class AdminEvent {
   @Column({ type: 'varchar', length: 500 })
   summary: string;
 
-  @CreateDateColumn({ type: 'timestamptz' })
+  @CreateDateColumn()
   createdAt: Date;
 
   @BeforeInsert()

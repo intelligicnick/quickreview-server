@@ -42,7 +42,7 @@ export class Business {
   @Column({ type: 'boolean', default: true })
   isActive: boolean;
 
-  @Column({ type: 'timestamptz', nullable: true })
+  @Column({ type: 'datetime', nullable: true })
   onboardingCompletedAt: Date | null;
 
   @Index()
@@ -55,13 +55,13 @@ export class Business {
   @OneToMany(() => BusinessMember, (member) => member.business)
   members: BusinessMember[];
 
-  @CreateDateColumn({ type: 'timestamptz' })
+  @CreateDateColumn()
   createdAt: Date;
 
-  @UpdateDateColumn({ type: 'timestamptz' })
+  @UpdateDateColumn()
   updatedAt: Date;
 
-  @DeleteDateColumn({ type: 'timestamptz' })
+  @DeleteDateColumn()
   deletedAt: Date | null;
 
   @BeforeInsert()

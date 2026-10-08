@@ -20,7 +20,7 @@ export class ReviewEvent {
   @Column({ type: 'varchar', length: 2000, nullable: true })
   message: string | null;
 
-  @CreateDateColumn({ type: 'timestamptz' })
+  @CreateDateColumn()
   createdAt: Date;
 
   @BeforeInsert()

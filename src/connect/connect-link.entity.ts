@@ -38,10 +38,10 @@ export class ConnectLink {
   @Column({ type: 'int', default: 0 })
   sortOrder: number;
 
-  @CreateDateColumn({ type: 'timestamptz' })
+  @CreateDateColumn()
   createdAt: Date;
 
-  @UpdateDateColumn({ type: 'timestamptz' })
+  @UpdateDateColumn()
   updatedAt: Date;
 
   @BeforeInsert()

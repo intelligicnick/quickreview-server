@@ -19,10 +19,10 @@ export class ContactMessage {
   message: string;
 
   @Index()
-  @Column({ type: 'timestamptz', nullable: true })
+  @Column({ type: 'datetime', nullable: true })
   handledAt: Date | null;
 
-  @CreateDateColumn({ type: 'timestamptz' })
+  @CreateDateColumn()
   createdAt: Date;
 
   @BeforeInsert()

@@ -36,7 +36,7 @@ export class RevisitVisit {
   @Column({ type: 'varchar', length: 20 })
   mobileE164: string;
 
-  @Column({ type: 'timestamptz' })
+  @Column({ type: 'datetime' })
   visitedAt: Date;
 
   @Column({ type: 'int' })
@@ -51,7 +51,7 @@ export class RevisitVisit {
   @Column({ type: 'varchar', length: 64, nullable: true })
   idempotencyKey: string | null;
 
-  @CreateDateColumn({ type: 'timestamptz' })
+  @CreateDateColumn()
   createdAt: Date;
 
   @BeforeInsert()

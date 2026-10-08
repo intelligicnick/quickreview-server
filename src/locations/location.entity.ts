@@ -65,31 +65,31 @@ export class Location {
   @Column({ type: 'varchar', length: 32, nullable: true })
   businessCategory: BusinessCategory | null;
 
-  @Column({ type: 'jsonb', default: () => "'[]'" })
+  @Column({ type: 'json', default: () => "'[]'" })
   businessSubcategories: string[];
 
   @Column({ type: 'varchar', length: 16, nullable: true })
   catalogType: CatalogType | null;
 
-  @Column({ type: 'timestamptz', nullable: true })
+  @Column({ type: 'datetime', nullable: true })
   quickCommerceSetupAt: Date | null;
 
   @Column({ type: 'int', default: 0 })
   scanCount: number;
 
-  @Column({ type: 'timestamptz', nullable: true })
+  @Column({ type: 'datetime', nullable: true })
   metricsRefreshedAt: Date | null;
 
   @Column({ type: 'varchar', length: 16, default: LocationStatus.ACTIVE })
   status: LocationStatus;
 
-  @CreateDateColumn({ type: 'timestamptz' })
+  @CreateDateColumn()
   createdAt: Date;
 
-  @UpdateDateColumn({ type: 'timestamptz' })
+  @UpdateDateColumn()
   updatedAt: Date;
 
-  @DeleteDateColumn({ type: 'timestamptz' })
+  @DeleteDateColumn()
   deletedAt: Date | null;
 
   @BeforeInsert()

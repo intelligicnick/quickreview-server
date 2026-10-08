@@ -66,12 +66,10 @@ export const ENTITIES = [
         const url = config.getOrThrow<string>('DATABASE_URL');
         const sync = config.get<string>('DATABASE_SYNC') === 'true';
         const migrationsRun = config.get<string>('DATABASE_MIGRATIONS_RUN') === 'true';
-        const remoteSsl =
-          /supabase\.(co|com)/i.test(url) || config.get<string>('DATABASE_SSL') === 'true';
         return {
-          type: 'postgres',
+          type: 'mysql',
           url,
-          ...(remoteSsl ? { ssl: { rejectUnauthorized: false } } : {}),
+          charset: 'utf8mb4',
           entities: ENTITIES,
           synchronize: sync,
           migrations: [join(__dirname, 'migrations/*.{ts,js}')],

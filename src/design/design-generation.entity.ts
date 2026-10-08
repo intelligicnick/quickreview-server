@@ -27,7 +27,7 @@ export class DesignGeneration {
   @Column({ type: 'text', nullable: true })
   error: string | null;
 
-  @CreateDateColumn({ type: 'timestamptz' })
+  @CreateDateColumn()
   createdAt: Date;
 
   @BeforeInsert()

@@ -33,13 +33,13 @@ export class AuthToken {
   @Column({ type: 'varchar', length: 64 })
   tokenHash: string;
 
-  @Column({ type: 'timestamptz' })
+  @Column({ type: 'datetime' })
   expiresAt: Date;
 
-  @Column({ type: 'timestamptz', nullable: true })
+  @Column({ type: 'datetime', nullable: true })
   consumedAt: Date | null;
 
-  @CreateDateColumn({ type: 'timestamptz' })
+  @CreateDateColumn()
   createdAt: Date;
 
   @BeforeInsert()

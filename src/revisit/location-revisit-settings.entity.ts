@@ -40,6 +40,6 @@ export class LocationRevisitSettings {
   @Column({ type: 'boolean', default: false })
   otpEnabled: boolean;
 
-  @UpdateDateColumn({ type: 'timestamptz' })
+  @UpdateDateColumn()
   updatedAt: Date;
 }

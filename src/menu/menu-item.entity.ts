@@ -43,7 +43,7 @@ export class MenuItem {
   @Column({ type: 'text', nullable: true })
   description: string | null;
 
-  @Column({ type: 'double precision', nullable: true })
+  @Column({ type: 'double', nullable: true })
   priceInr: number | null;
 
   @Column({ type: 'boolean', default: false })
@@ -56,7 +56,7 @@ export class MenuItem {
   imageUrl: string | null;
 
   /** Up to 2 entries: `local:0` / `local:1` for uploads, or https URLs. */
-  @Column({ type: 'jsonb', default: () => "'[]'" })
+  @Column({ type: 'json', default: () => "'[]'" })
   imageUrls: string[];
 
   @Column({ type: 'int', default: 0 })
@@ -68,10 +68,10 @@ export class MenuItem {
   @OneToMany(() => MenuItemPriceOption, (row) => row.item)
   priceOptions: MenuItemPriceOption[];
 
-  @CreateDateColumn({ type: 'timestamptz' })
+  @CreateDateColumn()
   createdAt: Date;
 
-  @UpdateDateColumn({ type: 'timestamptz' })
+  @UpdateDateColumn()
   updatedAt: Date;
 
   @BeforeInsert()

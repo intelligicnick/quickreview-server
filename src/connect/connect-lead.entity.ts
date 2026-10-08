@@ -36,7 +36,7 @@ export class ConnectLead {
   @Column({ type: 'varchar', length: 500, nullable: true })
   note: string | null;
 
-  @CreateDateColumn({ type: 'timestamptz' })
+  @CreateDateColumn()
   createdAt: Date;
 
   @BeforeInsert()

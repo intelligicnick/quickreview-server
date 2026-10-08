@@ -36,13 +36,13 @@ export class MenuItemVariantPrice {
   @JoinColumn({ name: 'variantId' })
   variant: MenuCategoryPriceVariant;
 
-  @Column({ type: 'double precision' })
+  @Column({ type: 'double' })
   priceInr: number;
 
-  @CreateDateColumn({ type: 'timestamptz' })
+  @CreateDateColumn()
   createdAt: Date;
 
-  @UpdateDateColumn({ type: 'timestamptz' })
+  @UpdateDateColumn()
   updatedAt: Date;
 
   @BeforeInsert()

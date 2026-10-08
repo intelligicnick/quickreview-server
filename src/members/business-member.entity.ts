@@ -43,10 +43,10 @@ export class BusinessMember {
   @Column({ type: 'varchar', length: 16, default: MemberStatus.ACTIVE })
   status: MemberStatus;
 
-  @CreateDateColumn({ type: 'timestamptz' })
+  @CreateDateColumn()
   createdAt: Date;
 
-  @UpdateDateColumn({ type: 'timestamptz' })
+  @UpdateDateColumn()
   updatedAt: Date;
 
   @BeforeInsert()

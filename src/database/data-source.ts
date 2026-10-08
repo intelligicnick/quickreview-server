@@ -12,8 +12,9 @@ if (!url) {
 }
 
 export default new DataSource({
-  type: 'postgres',
+  type: 'mysql',
   url,
+  charset: 'utf8mb4',
   entities: ENTITIES,
   migrations: [join(__dirname, 'migrations/*.{ts,js}')],
   synchronize: false,

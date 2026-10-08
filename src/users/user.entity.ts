@@ -30,7 +30,7 @@ export class User {
   @Column({ type: 'varchar', length: 120 })
   passwordHash: string;
 
-  @Column({ type: 'timestamptz', nullable: true })
+  @Column({ type: 'datetime', nullable: true })
   emailVerifiedAt: Date | null;
 
   @Column({ type: 'boolean', default: true })
@@ -45,13 +45,13 @@ export class User {
   @OneToMany(() => AuthToken, (token) => token.user)
   tokens: AuthToken[];
 
-  @CreateDateColumn({ type: 'timestamptz' })
+  @CreateDateColumn()
   createdAt: Date;
 
-  @UpdateDateColumn({ type: 'timestamptz' })
+  @UpdateDateColumn()
   updatedAt: Date;
 
-  @DeleteDateColumn({ type: 'timestamptz' })
+  @DeleteDateColumn()
   deletedAt: Date | null;
 
   @BeforeInsert()

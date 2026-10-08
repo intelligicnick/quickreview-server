@@ -24,10 +24,10 @@ export class RevisitCustomerReward {
   @Column({ type: 'varchar', length: 36 })
   rewardId: string;
 
-  @Column({ type: 'timestamptz' })
+  @Column({ type: 'datetime' })
   unlockedAt: Date;
 
-  @Column({ type: 'timestamptz', nullable: true })
+  @Column({ type: 'datetime', nullable: true })
   redeemedAt: Date | null;
 
   @Column({ type: 'varchar', length: 16, default: RevisitRewardStatus.UNLOCKED })
@@ -36,10 +36,10 @@ export class RevisitCustomerReward {
   @Column({ type: 'varchar', length: 16 })
   rewardCode: string;
 
-  @CreateDateColumn({ type: 'timestamptz' })
+  @CreateDateColumn()
   createdAt: Date;
 
-  @UpdateDateColumn({ type: 'timestamptz' })
+  @UpdateDateColumn()
   updatedAt: Date;
 
   @BeforeInsert()

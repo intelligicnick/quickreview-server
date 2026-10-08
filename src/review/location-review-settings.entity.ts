@@ -17,9 +17,9 @@ export class LocationReviewSettings {
   @JoinColumn({ name: 'locationId' })
   location: Location;
 
-  @Column({ type: 'jsonb', default: () => "'[]'" })
+  @Column({ type: 'json', default: () => "'[]'" })
   keywords: string[];
 
-  @UpdateDateColumn({ type: 'timestamptz' })
+  @UpdateDateColumn()
   updatedAt: Date;
 }

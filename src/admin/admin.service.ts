@@ -109,7 +109,10 @@ export class AdminService {
     const qb = this.users.createQueryBuilder('user').orderBy('user.createdAt', 'DESC').take(100);
     const term = searchTerm(q);
     if (term) {
-      qb.andWhere('(user.email ILIKE :term OR user.name ILIKE :term)', { term });
+      qb.andWhere(
+        '(LOWER(user.email) LIKE LOWER(:term) OR LOWER(user.name) LIKE LOWER(:term))',
+        { term },
+      );
     }
     if (status === 'unverified') qb.andWhere('user.emailVerifiedAt IS NULL');
     if (status === 'disabled') qb.andWhere('user.isActive = false');
@@ -223,7 +226,10 @@ export class AdminService {
       .take(200);
     const term = searchTerm(q);
     if (term) {
-      qb.andWhere('(location.name ILIKE :term OR business.name ILIKE :term)', { term });
+      qb.andWhere(
+        '(LOWER(location.name) LIKE LOWER(:term) OR LOWER(business.name) LIKE LOWER(:term))',
+        { term },
+      );
     }
     const rows = await qb.getMany();
     const owners = await this.ownersFor(rows.map((row) => row.business.ownerUserId));

@@ -62,19 +62,19 @@ export class ScannedContact {
   @Column({ type: 'varchar', length: 2000, nullable: true })
   notes: string | null;
 
-  @Column({ type: 'bytea', nullable: true })
+  @Column({ type: 'blob', nullable: true })
   frontImage: Buffer | null;
 
   @Column({ type: 'varchar', length: 64, nullable: true })
   frontMimeType: string | null;
 
-  @Column({ type: 'bytea', nullable: true })
+  @Column({ type: 'blob', nullable: true })
   backImage: Buffer | null;
 
   @Column({ type: 'varchar', length: 64, nullable: true })
   backMimeType: string | null;
 
-  @CreateDateColumn({ type: 'timestamptz' })
+  @CreateDateColumn()
   createdAt: Date;
 
   @BeforeInsert()

@@ -65,10 +65,10 @@ export class ConnectProfile {
   @OneToMany(() => ConnectLead, (lead) => lead.profile)
   leads: ConnectLead[];
 
-  @CreateDateColumn({ type: 'timestamptz' })
+  @CreateDateColumn()
   createdAt: Date;
 
-  @UpdateDateColumn({ type: 'timestamptz' })
+  @UpdateDateColumn()
   updatedAt: Date;
 
   @BeforeInsert()

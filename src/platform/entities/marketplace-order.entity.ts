@@ -61,10 +61,10 @@ export class MarketplaceOrder {
   @Column({ type: 'varchar', length: 24 })
   status: MarketplaceOrderStatus;
 
-  @CreateDateColumn({ type: 'timestamptz' })
+  @CreateDateColumn()
   createdAt: Date;
 
-  @UpdateDateColumn({ type: 'timestamptz' })
+  @UpdateDateColumn()
   updatedAt: Date;
 
   @BeforeInsert()
