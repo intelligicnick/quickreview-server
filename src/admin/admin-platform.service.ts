@@ -73,6 +73,91 @@ export class AdminPlatformService {
     return this.config.get<string>('APP_URL') ?? 'http://localhost:5173';
   }
 
+  async navCounts() {
+    const today = todayIso();
+    const [pendingPayments, noPlanShops, ordersToShip, openContact] = await Promise.all([
+      this.payments.count({ where: { status: PaymentStatus.PENDING } }),
+      this.locationsWithoutLivePlan(today),
+      this.orders.count({ where: { status: In(SHIP_QUEUE_STATUSES) } }),
+      this.contactMessages.count({ where: { handledAt: IsNull() } }),
+    ]);
+    const unverifiedMerchants = await this.locations.manager
+      .getRepository(User)
+      .count({ where: { emailVerifiedAt: IsNull(), isActive: true, isSuperAdmin: false } });
+    const desk =
+      pendingPayments + noPlanShops + ordersToShip + openContact + Math.min(unverifiedMerchants, 8);
+    return {
+      desk,
+      supportInbox: openContact,
+      payments: pendingPayments,
+      hardwareOrders: ordersToShip,
+    };
+  }
+
+  async deskHealth() {
+    const today = todayIso();
+    const inThreeDays = addDaysIso(today, 3);
+    const mrrRow = await this.subscriptions
+      .createQueryBuilder('sub')
+      .innerJoin('sub.plan', 'plan')
+      .select('COALESCE(SUM(plan.amountInr), 0)', 'mrrInr')
+      .where('sub.status = :active', { active: SubscriptionStatus.ACTIVE })
+      .andWhere('sub.startDate <= :today', { today })
+      .andWhere('sub.endDate >= :today', { today })
+      .andWhere('plan.amountInr > 0')
+      .getRawOne<{ mrrInr: string }>();
+
+    const payingRow = await this.subscriptions
+      .createQueryBuilder('sub')
+      .innerJoin('sub.plan', 'plan')
+      .select('COUNT(DISTINCT sub.locationId)', 'count')
+      .where('sub.status = :active', { active: SubscriptionStatus.ACTIVE })
+      .andWhere('sub.startDate <= :today', { today })
+      .andWhere('sub.endDate >= :today', { today })
+      .andWhere('plan.amountInr > 0')
+      .getRawOne<{ count: string }>();
+
+    const merchantsTotal = await this.locations.manager.getRepository(User).count({
+      where: { isSuperAdmin: false },
+    });
+
+    const trialsRunning = await this.subscriptions
+      .createQueryBuilder('sub')
+      .innerJoin('sub.plan', 'plan')
+      .where('sub.status = :active', { active: SubscriptionStatus.ACTIVE })
+      .andWhere('sub.startDate <= :today', { today })
+      .andWhere('sub.endDate >= :today', { today })
+      .andWhere('plan.amountInr = 0')
+      .getCount();
+
+    const trialsEndingSoon = await this.subscriptions
+      .createQueryBuilder('sub')
+      .innerJoinAndSelect('sub.location', 'location')
+      .innerJoinAndSelect('sub.plan', 'plan')
+      .where('sub.status = :active', { active: SubscriptionStatus.ACTIVE })
+      .andWhere('plan.amountInr = 0')
+      .andWhere('sub.endDate >= :today', { today })
+      .andWhere('sub.endDate <= :inThreeDays', { inThreeDays })
+      .orderBy('sub.endDate', 'ASC')
+      .take(12)
+      .getMany();
+
+    return {
+      mrrInr: Number(mrrRow?.mrrInr ?? 0),
+      payingLocations: Number(payingRow?.count ?? 0),
+      merchantsTotal,
+      trialsRunning,
+      trialsEndingIn3Days: trialsEndingSoon.length,
+      trialsEndingSoon: trialsEndingSoon.map((row) => ({
+        locationId: row.location.id,
+        locationName: row.location.name,
+        planName: row.plan.name,
+        product: row.product,
+        endDate: row.endDate,
+      })),
+    };
+  }
+
   async deskQueues() {
     const today = todayIso();
     const [pendingPayments, noPlanShops, ordersToShip, openContact] = await Promise.all([
@@ -82,19 +167,25 @@ export class AdminPlatformService {
       this.contactMessages.count({ where: { handledAt: IsNull() } }),
     ]);
 
+    const unverifiedUsers = await this.locations.manager.getRepository(User).find({
+      where: { emailVerifiedAt: IsNull(), isActive: true, isSuperAdmin: false },
+      order: { createdAt: 'DESC' },
+      take: 6,
+    });
+
     const [pendingPaymentRows, noPlanRows, orderRows, contactRows] = await Promise.all([
       this.payments.find({
         where: { status: PaymentStatus.PENDING },
         order: { createdAt: 'DESC' },
-        take: 8,
-        relations: { location: true, user: true },
+        take: 12,
+        relations: { location: true, user: true, subscription: { plan: true } },
       }),
       this.listNoPlanLocations(today, 8),
       this.orders.find({
         where: { status: In(SHIP_QUEUE_STATUSES) },
         order: { createdAt: 'DESC' },
         take: 8,
-        relations: { location: true },
+        relations: { location: true, product: true },
       }),
       this.contactMessages.find({
         where: { handledAt: IsNull() },
@@ -103,6 +194,84 @@ export class AdminPlatformService {
       }),
     ]);
 
+    const pendingPaymentsMapped = pendingPaymentRows.map((row) => ({
+      id: row.id,
+      kind: row.kind,
+      amountInr: row.amountInr,
+      provider: row.provider,
+      referenceNote: row.referenceNote,
+      locationId: row.locationId,
+      locationName: row.location?.name ?? null,
+      userEmail: row.user?.email ?? null,
+      planName: row.subscription?.plan?.name ?? null,
+      createdAt: row.createdAt,
+    }));
+
+    const workQueue: Array<{
+      id: string;
+      kind: 'PAYMENT' | 'ORDER' | 'SUPPORT' | 'ACCOUNT';
+      title: string;
+      detail: string;
+      createdAt: Date;
+      href: string;
+      actionLabel: string;
+    }> = [];
+
+    for (const row of pendingPaymentRows) {
+      const provider = row.provider ?? 'Payment';
+      const plan = row.subscription?.plan?.name ?? 'plan';
+      workQueue.push({
+        id: `pay-${row.id}`,
+        kind: 'PAYMENT',
+        title: `Verify ${provider} ₹${row.amountInr} — ${plan}`,
+        detail: [
+          row.user?.email ?? '—',
+          row.location?.name ?? '—',
+          row.referenceNote ? `UTR ${row.referenceNote}` : null,
+        ]
+          .filter(Boolean)
+          .join(' · '),
+        createdAt: row.createdAt,
+        href: `/admin/payments?payment=${row.id}`,
+        actionLabel: 'Verify',
+      });
+    }
+    for (const row of orderRows) {
+      workQueue.push({
+        id: `ord-${row.id}`,
+        kind: 'ORDER',
+        title: `Ship ${row.quantity} × ${row.product?.name ?? row.designName}`,
+        detail: `${row.businessNameSnapshot} · ${row.location?.name ?? '—'} · ₹${row.amountInr}`,
+        createdAt: row.createdAt,
+        href: '/admin/marketplace',
+        actionLabel: 'Fulfil',
+      });
+    }
+    for (const row of contactRows) {
+      workQueue.push({
+        id: `msg-${row.id}`,
+        kind: 'SUPPORT',
+        title: `"${row.message.slice(0, 72)}${row.message.length > 72 ? '…' : ''}"`,
+        detail: `${row.name} · ${row.email}`,
+        createdAt: row.createdAt,
+        href: '/admin/contact',
+        actionLabel: 'Reply',
+      });
+    }
+    for (const row of unverifiedUsers) {
+      workQueue.push({
+        id: `usr-${row.id}`,
+        kind: 'ACCOUNT',
+        title: 'Email not verified',
+        detail: `${row.email} · signed up ${row.createdAt.toISOString().slice(0, 10)}`,
+        createdAt: row.createdAt,
+        href: `/admin/merchants/${row.id}`,
+        actionLabel: 'Resend link',
+      });
+    }
+
+    workQueue.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
     return {
       counts: {
         pendingPayments,
@@ -110,21 +279,16 @@ export class AdminPlatformService {
         ordersToShip,
         contactMessages: openContact,
       },
-      pendingPayments: pendingPaymentRows.map((row) => ({
-        id: row.id,
-        kind: row.kind,
-        amountInr: row.amountInr,
-        provider: row.provider,
-        locationName: row.location?.name ?? null,
-        userEmail: row.user?.email ?? null,
-        createdAt: row.createdAt,
-      })),
+      workQueue: workQueue.slice(0, 20),
+      pendingPayments: pendingPaymentsMapped,
       noPlanShops: noPlanRows,
       ordersToShip: orderRows.map((row) => ({
         id: row.id,
         status: row.status,
         businessNameSnapshot: row.businessNameSnapshot,
         locationName: row.location?.name ?? null,
+        productName: row.product?.name ?? null,
+        amountInr: row.amountInr,
         createdAt: row.createdAt,
       })),
       contactMessages: contactRows.map((row) => ({
@@ -138,7 +302,17 @@ export class AdminPlatformService {
   }
 
   async listPlans() {
+    const today = todayIso();
     const rows = await this.plans.find({ order: { sortOrder: 'ASC', name: 'ASC' } });
+    const sold = await this.subscriptions
+      .createQueryBuilder('sub')
+      .select('sub.planId', 'planId')
+      .addSelect('COUNT(DISTINCT sub.locationId)', 'locations')
+      .where('sub.status = :active', { active: SubscriptionStatus.ACTIVE })
+      .andWhere('sub.startDate <= :today', { today })
+      .andWhere('sub.endDate >= :today', { today })
+      .getRawMany<{ planId: string; locations: string }>();
+    const soldMap = new Map(sold.map((row) => [row.planId, Number(row.locations)]));
     return rows.map((plan) => ({
       id: plan.id,
       code: plan.code,
@@ -148,6 +322,7 @@ export class AdminPlatformService {
       durationDays: plan.durationDays,
       isActive: plan.isActive,
       sortOrder: plan.sortOrder,
+      activeLocationCount: soldMap.get(plan.id) ?? 0,
     }));
   }
 
@@ -184,7 +359,10 @@ export class AdminPlatformService {
     }));
   }
 
-  async grantComp(actor: User, body: { locationId: string; planId: string; note?: string }) {
+  async grantComp(
+    actor: User,
+    body: { locationId: string; planId: string; reason: string; durationDays?: number },
+  ) {
     const location = await this.locations.findOne({
       where: { id: body.locationId },
       relations: { business: true },
@@ -194,7 +372,8 @@ export class AdminPlatformService {
     if (!plan) throw this.notFound('Plan not found');
 
     const today = todayIso();
-    const end = addDaysIso(today, plan.durationDays);
+    const days = body.durationDays ?? plan.durationDays;
+    const end = addDaysIso(today, days);
     const sub = await this.subscriptions.save(
       this.subscriptions.create({
         locationId: location.id,
@@ -208,8 +387,18 @@ export class AdminPlatformService {
         amountInr: 0,
       }),
     );
-    await this.log(actor.id, 'SUBSCRIPTION_COMP', `Comp ${plan.name} for ${location.name}`);
+    await this.log(
+      actor.id,
+      'SUBSCRIPTION_COMP',
+      `Granted ${plan.name} for ${days} days to ${location.name} — "${body.reason.trim()}"`,
+    );
     return { id: sub.id, endDate: sub.endDate };
+  }
+
+  async rejectPayment(actor: User, paymentId: string, reason: string) {
+    const result = await this.subscriptionBilling.rejectPayment(paymentId, reason);
+    await this.log(actor.id, 'PAYMENT_REJECTED', reason.trim());
+    return result;
   }
 
   async createManualPayment(
@@ -285,6 +474,8 @@ export class AdminPlatformService {
       .createQueryBuilder('payment')
       .leftJoinAndSelect('payment.location', 'location')
       .leftJoinAndSelect('payment.user', 'user')
+      .leftJoinAndSelect('payment.subscription', 'subscription')
+      .leftJoinAndSelect('subscription.plan', 'plan')
       .orderBy('payment.createdAt', 'DESC')
       .take(100);
     if (status) qb.andWhere('payment.status = :status', { status });
@@ -295,10 +486,120 @@ export class AdminPlatformService {
       status: row.status,
       provider: row.provider,
       amountInr: row.amountInr,
+      referenceNote: row.referenceNote,
+      locationId: row.locationId,
       locationName: row.location?.name ?? null,
       userEmail: row.user?.email ?? null,
+      userId: row.userId,
+      planName: row.subscription?.plan?.name ?? null,
+      planId: row.subscription?.planId ?? null,
+      subscriptionEndDate: row.subscription?.endDate ?? null,
       createdAt: row.createdAt,
       paidAt: row.paidAt,
+    }));
+  }
+
+  async merchantBillingForUser(userId: string) {
+    const [payments, subscriptions, orders] = await Promise.all([
+      this.payments.find({
+        where: { userId },
+        relations: { location: true, subscription: { plan: true } },
+        order: { createdAt: 'DESC' },
+        take: 40,
+      }),
+      this.subscriptions.find({
+        where: { userId },
+        relations: { location: true, plan: true },
+        order: { createdAt: 'DESC' },
+        take: 80,
+      }),
+      this.orders.find({
+        where: { userId },
+        relations: { location: true, product: true },
+        order: { createdAt: 'DESC' },
+        take: 20,
+      }),
+    ]);
+    const locationIds = [...new Set(subscriptions.map((row) => row.locationId))];
+    const qrRows = locationIds.length
+      ? await this.qrCodes.find({ where: { locationId: In(locationIds) } })
+      : [];
+    const qrByLocation = new Map<string, QrCode[]>();
+    for (const qr of qrRows) {
+      if (!qr.locationId) continue;
+      const list = qrByLocation.get(qr.locationId) ?? [];
+      list.push(qr);
+      qrByLocation.set(qr.locationId, list);
+    }
+    const today = todayIso();
+    const lifetimePaid = payments
+      .filter((row) => row.status === PaymentStatus.SUCCEEDED)
+      .reduce((sum, row) => sum + row.amountInr, 0);
+    const monthlyPaid = subscriptions
+      .filter(
+        (row) =>
+          row.status === SubscriptionStatus.ACTIVE &&
+          row.startDate <= today &&
+          row.endDate >= today &&
+          row.plan.amountInr > 0,
+      )
+      .reduce((sum, row) => sum + row.plan.amountInr, 0);
+    return {
+      lifetimePaidInr: lifetimePaid,
+      monthlyPaidInr: monthlyPaid,
+      payments: payments.map((row) => ({
+        id: row.id,
+        status: row.status,
+        provider: row.provider,
+        amountInr: row.amountInr,
+        referenceNote: row.referenceNote,
+        locationName: row.location?.name ?? null,
+        planName: row.subscription?.plan?.name ?? null,
+        createdAt: row.createdAt,
+      })),
+      subscriptions: subscriptions.map((row) => ({
+        id: row.id,
+        status: row.status,
+        source: row.source,
+        product: row.product,
+        startDate: row.startDate,
+        endDate: row.endDate,
+        amountInr: row.amountInr,
+        locationId: row.locationId,
+        locationName: row.location.name,
+        planName: row.plan.name,
+        isTrial: row.plan.amountInr === 0,
+      })),
+      orders: orders.map((row) => ({
+        id: row.id,
+        status: row.status,
+        amountInr: row.amountInr,
+        quantity: row.quantity,
+        productName: row.product?.name ?? row.designName,
+        locationName: row.location.name,
+        createdAt: row.createdAt,
+      })),
+      qrByLocation: Object.fromEntries(
+        [...qrByLocation.entries()].map(([locationId, codes]) => [
+          locationId,
+          codes.map((qr) => ({
+            id: qr.id,
+            code: qr.code,
+            isMenuQr: qr.isMenuQr,
+            isPrinted: qr.isPrinted,
+          })),
+        ]),
+      ),
+    };
+  }
+
+  async listActivityEvents(take = 50) {
+    const rows = await this.events.find({ order: { createdAt: 'DESC' }, take });
+    return rows.map((event) => ({
+      id: event.id,
+      action: event.action,
+      summary: event.summary,
+      createdAt: event.createdAt,
     }));
   }
 
@@ -427,7 +728,11 @@ export class AdminPlatformService {
   }
 
   async listQrCodes(batchId?: string, unassignedOnly?: boolean) {
-    const qb = this.qrCodes.createQueryBuilder('qr').orderBy('qr.createdAt', 'DESC').take(200);
+    const qb = this.qrCodes
+      .createQueryBuilder('qr')
+      .leftJoinAndSelect('qr.location', 'location')
+      .orderBy('qr.createdAt', 'DESC')
+      .take(500);
     if (batchId) qb.andWhere('qr.batchId = :batchId', { batchId });
     if (unassignedOnly) qb.andWhere('qr.locationId IS NULL');
     const rows = await qb.getMany();
@@ -438,6 +743,7 @@ export class AdminPlatformService {
       batchId: row.batchId,
       claimUrl: qrClaimUrl(app, row.code),
       locationId: row.locationId,
+      locationName: row.location?.name ?? null,
       targetUrl: row.targetUrl,
       isMenuQr: row.isMenuQr,
       isPrinted: row.isPrinted,

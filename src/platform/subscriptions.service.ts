@@ -100,6 +100,30 @@ export class SubscriptionsService {
     return { id: payment.id, status: payment.status };
   }
 
+  async rejectPayment(paymentId: string, reason: string) {
+    const payment = await this.payments.findOne({
+      where: { id: paymentId },
+      relations: { subscription: true },
+    });
+    if (!payment) {
+      throw new NotFoundException({ code: ERROR_CODES.NOT_FOUND, message: 'Payment not found' });
+    }
+    if (payment.status !== PaymentStatus.PENDING) {
+      throw new BadRequestException({
+        code: ERROR_CODES.VALIDATION_ERROR,
+        message: 'Only pending payments can be rejected',
+      });
+    }
+    payment.status = PaymentStatus.FAILED;
+    payment.referenceNote = reason.slice(0, 64);
+    await this.payments.save(payment);
+    if (payment.subscriptionId && payment.subscription) {
+      payment.subscription.status = SubscriptionStatus.CANCELLED;
+      await this.subscriptions.save(payment.subscription);
+    }
+    return { id: payment.id, status: payment.status };
+  }
+
   async listActivePlans(product?: BillingProduct) {
     const rows = await this.plans.find({
       where: { isActive: true },

@@ -29,6 +29,7 @@ import {
   CreateQrProductDto,
   GrantCompSubscriptionDto,
   MarkPaymentPaidDto,
+  RejectPaymentDto,
   SetQrPrintedDto,
   TransferBusinessDto,
   UpdateAdminLocationDto,
@@ -50,8 +51,23 @@ export class AdminController {
 
   @Get('overview')
   async overview() {
-    const [base, desk] = await Promise.all([this.adminService.overview(), this.platform.deskQueues()]);
-    return { ...base, desk };
+    const [base, desk, health, navCounts] = await Promise.all([
+      this.adminService.overview(),
+      this.platform.deskQueues(),
+      this.platform.deskHealth(),
+      this.platform.navCounts(),
+    ]);
+    return { ...base, desk, health, navCounts };
+  }
+
+  @Get('nav-counts')
+  navCounts() {
+    return this.platform.navCounts();
+  }
+
+  @Get('activity')
+  listActivity() {
+    return this.adminService.listActivity();
   }
 
   @Get('users')
@@ -150,6 +166,15 @@ export class AdminController {
     @Body() dto: MarkPaymentPaidDto,
   ) {
     return this.platform.markPaymentPaid(actor, paymentId, dto.note);
+  }
+
+  @Post('payments/:paymentId/reject')
+  rejectPayment(
+    @CurrentUser() actor: User,
+    @Param('paymentId', new ParseUUIDPipe({ version: '4' })) paymentId: string,
+    @Body() dto: RejectPaymentDto,
+  ) {
+    return this.platform.rejectPayment(actor, paymentId, dto.reason);
   }
 
   @Get('marketplace/categories')

@@ -59,12 +59,13 @@ export class AdminService {
       .getCount();
 
     const unverifiedUsers = await this.users.find({
-      where: { emailVerifiedAt: IsNull(), isActive: true },
+      where: { emailVerifiedAt: IsNull(), isActive: true, isSuperAdmin: false },
       order: { createdAt: 'DESC' },
       take: 6,
     });
 
     const recentSignups = await this.users.find({
+      where: { isSuperAdmin: false },
       order: { createdAt: 'DESC' },
       take: 6,
     });
@@ -133,6 +134,13 @@ export class AdminService {
       relations: { locations: true },
       order: { createdAt: 'DESC' },
     });
+    const billing = await this.platform.merchantBillingForUser(userId);
+    const events = await this.events
+      .createQueryBuilder('event')
+      .where('LOWER(event.summary) LIKE LOWER(:needle)', { needle: `%${user.email}%` })
+      .orderBy('event.createdAt', 'DESC')
+      .take(15)
+      .getMany();
     return {
       ...toPublicUser(user),
       businesses: businesses.map((business) => ({
@@ -146,9 +154,22 @@ export class AdminService {
           name: location.name,
           status: location.status,
           address: location.address,
+          slug: location.slug,
+          reviewCode: location.reviewCode,
+          menuMode: location.menuMode,
         })),
       })),
+      billing,
+      history: events.map((event) => ({
+        id: event.id,
+        summary: event.summary,
+        createdAt: event.createdAt,
+      })),
     };
+  }
+
+  async listActivity(take = 50) {
+    return this.platform.listActivityEvents(take);
   }
 
   async updateUser(actor: User, userId: string, dto: UpdateAdminUserDto) {

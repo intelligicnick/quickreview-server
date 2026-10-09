@@ -117,10 +117,23 @@ export class GrantCompSubscriptionDto {
   @IsUUID('4')
   planId: string;
 
-  @IsOptional()
   @IsString()
+  @MinLength(3)
   @MaxLength(200)
-  note?: string;
+  reason: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(3650)
+  durationDays?: number;
+}
+
+export class RejectPaymentDto {
+  @IsString()
+  @MinLength(3)
+  @MaxLength(200)
+  reason: string;
 }
 
 export class CreateManualPaymentDto {
