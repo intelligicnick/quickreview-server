@@ -41,22 +41,22 @@ export class ScannedContact {
   @Column({ type: 'varchar', length: 120, nullable: true })
   designation: string | null;
 
-  @Column({ type: 'simple-json', default: () => "'[]'" })
+  @Column({ type: 'simple-json' })
   phones: string[];
 
-  @Column({ type: 'simple-json', default: () => "'[]'" })
+  @Column({ type: 'simple-json' })
   emails: string[];
 
-  @Column({ type: 'simple-json', default: () => "'[]'" })
+  @Column({ type: 'simple-json' })
   websites: string[];
 
   @Column({ type: 'varchar', length: 500, nullable: true })
   address: string | null;
 
-  @Column({ type: 'simple-json', default: () => "'[]'" })
+  @Column({ type: 'simple-json' })
   services: string[];
 
-  @Column({ type: 'simple-json', default: () => "'[]'" })
+  @Column({ type: 'simple-json' })
   products: string[];
 
   @Column({ type: 'varchar', length: 2000, nullable: true })
@@ -80,5 +80,10 @@ export class ScannedContact {
   @BeforeInsert()
   assignId(): void {
     if (!this.id) this.id = newId();
+    if (this.phones == null) this.phones = [];
+    if (this.emails == null) this.emails = [];
+    if (this.websites == null) this.websites = [];
+    if (this.services == null) this.services = [];
+    if (this.products == null) this.products = [];
   }
 }

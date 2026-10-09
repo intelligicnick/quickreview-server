@@ -1,4 +1,5 @@
 import {
+  BeforeInsert,
   Column,
   Entity,
   JoinColumn,
@@ -17,9 +18,14 @@ export class LocationReviewSettings {
   @JoinColumn({ name: 'locationId' })
   location: Location;
 
-  @Column({ type: 'json', default: () => "'[]'" })
+  @Column({ type: 'json' })
   keywords: string[];
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  @BeforeInsert()
+  defaultKeywords(): void {
+    if (this.keywords == null) this.keywords = [];
+  }
 }

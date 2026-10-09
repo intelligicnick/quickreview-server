@@ -56,7 +56,7 @@ export class MenuItem {
   imageUrl: string | null;
 
   /** Up to 2 entries: `local:0` / `local:1` for uploads, or https URLs. */
-  @Column({ type: 'json', default: () => "'[]'" })
+  @Column({ type: 'json' })
   imageUrls: string[];
 
   @Column({ type: 'int', default: 0 })
@@ -77,5 +77,6 @@ export class MenuItem {
   @BeforeInsert()
   assignId(): void {
     if (!this.id) this.id = newId();
+    if (this.imageUrls == null) this.imageUrls = [];
   }
 }

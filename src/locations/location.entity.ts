@@ -65,7 +65,7 @@ export class Location {
   @Column({ type: 'varchar', length: 32, nullable: true })
   businessCategory: BusinessCategory | null;
 
-  @Column({ type: 'json', default: () => "'[]'" })
+  @Column({ type: 'json' })
   businessSubcategories: string[];
 
   @Column({ type: 'varchar', length: 16, nullable: true })
@@ -95,5 +95,6 @@ export class Location {
   @BeforeInsert()
   assignId(): void {
     if (!this.id) this.id = newId();
+    if (this.businessSubcategories == null) this.businessSubcategories = [];
   }
 }
