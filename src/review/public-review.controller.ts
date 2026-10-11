@@ -26,6 +26,6 @@ export class PublicReviewController {
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
   suggestions(@Param('code') code: string, @Body() dto: SuggestReviewDraftsDto) {
-    return this.reviewService.suggestPublicDrafts(code, dto.stars);
+    return this.reviewService.suggestPublicDrafts(code, dto.stars, dto.answers);
   }
 }

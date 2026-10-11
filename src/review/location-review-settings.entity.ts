@@ -21,11 +21,15 @@ export class LocationReviewSettings {
   @Column({ type: 'json' })
   keywords: string[];
 
+  @Column({ type: 'json', nullable: true })
+  reviewQuestions: string[] | null;
+
   @UpdateDateColumn()
   updatedAt: Date;
 
   @BeforeInsert()
   defaultKeywords(): void {
     if (this.keywords == null) this.keywords = [];
+    if (this.reviewQuestions == null) this.reviewQuestions = [];
   }
 }

@@ -110,7 +110,12 @@ describe('Polish — QR claim & AI drafts', () => {
 
     const drafts = await request(app.getHttpServer())
       .post(`/api/public/r/${reviewCode}/suggestions`)
-      .send({ stars: 5 })
+      .send({
+        stars: 5,
+        answers: [
+          { question: 'What did you enjoy most?', answer: 'The biryani and quick seating' },
+        ],
+      })
       .expect(200);
     expect(drafts.body.data.suggestions.length).toBeGreaterThanOrEqual(3);
   });

@@ -17,7 +17,13 @@ import { User } from '../users/user.entity';
 import { UpdateReviewSettingsDto } from './dto/review-settings.dto';
 import { RecordReviewEventDto } from './dto/public-review.dto';
 import { LocationReviewSettings } from './location-review-settings.entity';
+import {
+  normalizeDraftAnswers,
+  resolveReviewQuestions,
+  type ReviewDraftAnswer,
+} from './review-questions.constants';
 import { ReviewDraftService } from './review-draft.service';
+import { ReviewDraftAnswerDto } from './dto/review-settings.dto';
 import { ReviewEventKind } from './review-event-kind.enum';
 import { ReviewEvent } from './review-event.entity';
 
@@ -65,6 +71,7 @@ export class ReviewService {
     await this.assertQuickReviewLive(location.id);
     await this.record(location.id, ReviewEventKind.PAGE_VIEW, null, null);
     const placeId = location.googlePlaceId ?? parseGooglePlaceId(location.googleReviewUrl);
+    const settings = await this.ensureSettingsRow(location.id);
     return {
       code: location.reviewCode,
       name: location.name,
@@ -72,6 +79,7 @@ export class ReviewService {
       category: location.business?.category ?? null,
       googlePlaceId: placeId,
       googleReviewUrl: placeId ? googleWriteReviewUrl(placeId) : null,
+      reviewQuestions: resolveReviewQuestions(settings.reviewQuestions),
     };
   }
 
@@ -131,11 +139,26 @@ export class ReviewService {
     });
   }
 
-  async suggestPublicDrafts(code: string, stars: number) {
+  async suggestPublicDrafts(code: string, stars: number, answers: ReviewDraftAnswerDto[]) {
     const location = await this.findByReviewCode(code);
     await this.assertQuickReviewLive(location.id);
-    const keywords = await this.keywordsForLocation(location.id);
-    const suggestions = await this.drafts.suggestDrafts(location, stars, keywords);
+    const settings = await this.ensureSettingsRow(location.id);
+    const questions = resolveReviewQuestions(settings.reviewQuestions);
+    const normalized = normalizeDraftAnswers(questions, answers);
+    const withContent = normalized.filter((row) => row.answer.trim().length >= 2);
+    if (!withContent.length) {
+      throw new BadRequestException({
+        code: ERROR_CODES.VALIDATION_ERROR,
+        message: 'Please answer at least one question',
+      });
+    }
+    const keywords = settings.keywords ?? [];
+    const suggestions = await this.drafts.suggestDrafts(
+      location,
+      stars,
+      keywords,
+      withContent as ReviewDraftAnswer[],
+    );
     return { suggestions };
   }
 
@@ -149,7 +172,11 @@ export class ReviewService {
     }
     await this.members.assertMember(user, location.businessId);
     const row = await this.ensureSettingsRow(locationId);
-    return { locationId, keywords: row.keywords ?? [] };
+    return {
+      locationId,
+      keywords: row.keywords ?? [],
+      reviewQuestions: resolveReviewQuestions(row.reviewQuestions),
+    };
   }
 
   async updateReviewSettings(user: User, locationId: string, dto: UpdateReviewSettingsDto) {
@@ -165,8 +192,15 @@ export class ReviewService {
     if (dto.keywords !== undefined) {
       row.keywords = dto.keywords.map((k) => k.trim()).filter(Boolean).slice(0, 12);
     }
+    if (dto.reviewQuestions !== undefined) {
+      row.reviewQuestions = dto.reviewQuestions.map((q) => q.trim()).filter(Boolean).slice(0, 5);
+    }
     await this.reviewSettings.save(row);
-    return { locationId, keywords: row.keywords };
+    return {
+      locationId,
+      keywords: row.keywords,
+      reviewQuestions: resolveReviewQuestions(row.reviewQuestions),
+    };
   }
 
   async merchantSummary(user: User, locationId: string) {
@@ -203,6 +237,7 @@ export class ReviewService {
       reviewUnlocked: reviewAccess.unlocked,
       reviewAccess,
       aiKeywords: settings.keywords ?? [],
+      aiReviewQuestions: resolveReviewQuestions(settings.reviewQuestions),
       stats: {
         pageViews,
         stars,
