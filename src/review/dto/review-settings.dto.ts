@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
@@ -38,14 +38,17 @@ export class ReviewDraftAnswerDto {
 }
 
 export class SuggestReviewDraftsDto {
+  @Type(() => Number)
   @IsInt()
   @Min(4)
   @Max(5)
   stars: number;
 
+  @IsOptional()
   @IsArray()
   @ArrayMaxSize(5)
   @ValidateNested({ each: true })
   @Type(() => ReviewDraftAnswerDto)
-  answers: ReviewDraftAnswerDto[];
+  @Transform(({ value }) => (value == null ? [] : value))
+  answers?: ReviewDraftAnswerDto[];
 }

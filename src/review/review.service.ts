@@ -144,9 +144,9 @@ export class ReviewService {
     await this.assertQuickReviewLive(location.id);
     const settings = await this.ensureSettingsRow(location.id);
     const questions = resolveReviewQuestions(settings.reviewQuestions);
-    const normalized = normalizeDraftAnswers(questions, answers);
+    const normalized = normalizeDraftAnswers(questions, answers ?? []);
     const withContent = normalized.filter((row) => row.answer.trim().length >= 2);
-    if (!withContent.length) {
+    if (answers.length > 0 && !withContent.length) {
       throw new BadRequestException({
         code: ERROR_CODES.VALIDATION_ERROR,
         message: 'Please answer at least one question',

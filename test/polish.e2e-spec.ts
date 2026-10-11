@@ -119,4 +119,21 @@ describe('Polish — QR claim & AI drafts', () => {
       .expect(200);
     expect(drafts.body.data.suggestions.length).toBeGreaterThanOrEqual(3);
   });
+
+  it('accepts legacy suggestions requests without answers', async () => {
+    const { token, locationId } = await ownerWithLocation();
+    await activateReviewTrial(token, locationId);
+
+    const hub = await request(app.getHttpServer())
+      .get(`/api/locations/${locationId}/quickreview`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    const reviewCode = hub.body.data.reviewCode as string;
+
+    const drafts = await request(app.getHttpServer())
+      .post(`/api/public/r/${reviewCode}/suggestions`)
+      .send({ stars: 5 })
+      .expect(200);
+    expect(drafts.body.data.suggestions.length).toBeGreaterThanOrEqual(1);
+  });
 });

@@ -60,27 +60,36 @@ export class ReviewDraftService {
     apiKey: string,
   ): Promise<string[]> {
     const model = this.config.get<string>('GEMINI_MODEL') ?? 'gemini-2.0-flash';
-    const prompt = [
-      'Write 3 short, authentic Google review drafts in the customer\'s voice (first person).',
-      'Base the text ONLY on the customer answers below — do not invent staff names, offers, or facts they did not mention.',
-      'Return ONLY a JSON array of 3 strings, no markdown.',
-      `Business: ${location.name}`,
-      location.address ? `Address hint: ${location.address}` : null,
-      `Star rating they chose: ${stars} out of 5`,
-      'Customer answers:',
-      this.formatAnswers(answers),
-      keywords.length ? `If natural, weave in one of these business themes: ${keywords.join(', ')}` : null,
-      'Rules: casual tone, 1-3 sentences each, no hashtags, varied wording across the 3 drafts.',
-    ]
-      .filter(Boolean)
-      .join('\n');
+    const prompt = answers.length
+      ? [
+          'Write 3 short, authentic Google review drafts in the customer\'s voice (first person).',
+          'Base the text ONLY on the customer answers below — do not invent staff names, offers, or facts they did not mention.',
+          'Return ONLY a JSON array of 3 strings, no markdown.',
+          `Business: ${location.name}`,
+          location.address ? `Address hint: ${location.address}` : null,
+          `Star rating they chose: ${stars} out of 5`,
+          'Customer answers:',
+          this.formatAnswers(answers),
+          keywords.length ? `If natural, weave in one of these business themes: ${keywords.join(', ')}` : null,
+          'Rules: casual tone, 1-3 sentences each, no hashtags, varied wording across the 3 drafts.',
+        ]
+      : [
+          'Write 4 short, authentic Google review drafts for a customer.',
+          'Return ONLY a JSON array of 4 strings, no markdown.',
+          `Business: ${location.name}`,
+          location.address ? `Address hint: ${location.address}` : null,
+          `Star rating: ${stars} out of 5`,
+          keywords.length ? `Naturally mention one of these when relevant: ${keywords.join(', ')}` : null,
+          'Rules: casual tone, 1-3 sentences each, no hashtags, no fake staff names.',
+        ];
+    const promptText = prompt.filter(Boolean).join('\n');
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        contents: [{ role: 'user', parts: [{ text: promptText }] }],
         generationConfig: { temperature: 0.85, maxOutputTokens: 1024 },
       }),
     });
