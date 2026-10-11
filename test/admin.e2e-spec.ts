@@ -135,6 +135,46 @@ describe('Super admin', () => {
     await agent.post('/api/auth/resume-admin').send({ token: minted.body.data.resumeToken }).expect(401);
   });
 
+  it('loads merchant detail when a subscribed location was soft-deleted', async () => {
+    const admin = await superAdmin('detail');
+    const merchant = await verifiedUser('detailshop');
+    const business = await request(app.getHttpServer())
+      .post('/api/businesses')
+      .set('Authorization', `Bearer ${merchant.token}`)
+      .send({ name: 'Detail Shop' })
+      .expect(201);
+    const location = await request(app.getHttpServer())
+      .post(`/api/businesses/${business.body.data.id}/locations`)
+      .set('Authorization', `Bearer ${merchant.token}`)
+      .send({ name: 'Counter' })
+      .expect(201);
+    const locationId = location.body.data.id as string;
+
+    const plans = await request(app.getHttpServer())
+      .get('/api/billing/plans')
+      .set('Authorization', `Bearer ${merchant.token}`)
+      .expect(200);
+    const trial = plans.body.data.find((row: { code: string }) => row.code === 'quickreview_trial');
+    expect(trial).toBeDefined();
+    await request(app.getHttpServer())
+      .post(`/api/billing/locations/${locationId}/checkout`)
+      .set('Authorization', `Bearer ${merchant.token}`)
+      .send({ planId: trial.id })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .delete(`/api/admin/locations/${locationId}`)
+      .set('Authorization', `Bearer ${admin.token}`)
+      .expect(200);
+
+    const detail = await request(app.getHttpServer())
+      .get(`/api/admin/users/${merchant.userId}`)
+      .set('Authorization', `Bearer ${admin.token}`)
+      .expect(200);
+    expect(detail.body.data.billing.subscriptions.length).toBeGreaterThan(0);
+    expect(detail.body.data.billing.subscriptions[0].locationName).toBeNull();
+  });
+
   it('transfers a business to another account', async () => {
     const admin = await superAdmin('transfer');
     const seller = await verifiedUser('seller');

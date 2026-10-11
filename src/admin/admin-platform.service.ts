@@ -374,6 +374,23 @@ export class AdminPlatformService {
     const today = todayIso();
     const days = body.durationDays ?? plan.durationDays;
     const end = addDaysIso(today, days);
+
+    const superseded = await this.subscriptions.find({
+      where: {
+        locationId: location.id,
+        product: plan.product,
+        status: SubscriptionStatus.ACTIVE,
+      },
+    });
+    if (superseded.length) {
+      const yesterday = addDaysIso(today, -1);
+      for (const row of superseded) {
+        row.status = SubscriptionStatus.EXPIRED;
+        if (row.endDate >= today) row.endDate = yesterday;
+      }
+      await this.subscriptions.save(superseded);
+    }
+
     const sub = await this.subscriptions.save(
       this.subscriptions.create({
         locationId: location.id,
@@ -535,15 +552,16 @@ export class AdminPlatformService {
     const lifetimePaid = payments
       .filter((row) => row.status === PaymentStatus.SUCCEEDED)
       .reduce((sum, row) => sum + row.amountInr, 0);
+    const planAmountInr = (row: Subscription) => row.plan?.amountInr ?? row.amountInr;
     const monthlyPaid = subscriptions
       .filter(
         (row) =>
           row.status === SubscriptionStatus.ACTIVE &&
           row.startDate <= today &&
           row.endDate >= today &&
-          row.plan.amountInr > 0,
+          planAmountInr(row) > 0,
       )
-      .reduce((sum, row) => sum + row.plan.amountInr, 0);
+      .reduce((sum, row) => sum + planAmountInr(row), 0);
     return {
       lifetimePaidInr: lifetimePaid,
       monthlyPaidInr: monthlyPaid,
@@ -566,9 +584,9 @@ export class AdminPlatformService {
         endDate: row.endDate,
         amountInr: row.amountInr,
         locationId: row.locationId,
-        locationName: row.location.name,
-        planName: row.plan.name,
-        isTrial: row.plan.amountInr === 0,
+        locationName: row.location?.name ?? null,
+        planName: row.plan?.name ?? null,
+        isTrial: planAmountInr(row) === 0,
       })),
       orders: orders.map((row) => ({
         id: row.id,
@@ -576,7 +594,7 @@ export class AdminPlatformService {
         amountInr: row.amountInr,
         quantity: row.quantity,
         productName: row.product?.name ?? row.designName,
-        locationName: row.location.name,
+        locationName: row.location?.name ?? null,
         createdAt: row.createdAt,
       })),
       qrByLocation: Object.fromEntries(
