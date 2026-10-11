@@ -7,6 +7,7 @@ import {
   PrimaryColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { jsonStringArrayTransformer } from '../common/utils/json-string-array';
 import { Location } from '../locations/location.entity';
 
 @Entity('location_review_settings')
@@ -18,10 +19,10 @@ export class LocationReviewSettings {
   @JoinColumn({ name: 'locationId' })
   location: Location;
 
-  @Column({ type: 'json' })
+  @Column({ type: 'text', transformer: jsonStringArrayTransformer })
   keywords: string[];
 
-  @Column({ type: 'json', nullable: true })
+  @Column({ type: 'text', nullable: true, transformer: jsonStringArrayTransformer })
   reviewQuestions: string[] | null;
 
   @UpdateDateColumn()
