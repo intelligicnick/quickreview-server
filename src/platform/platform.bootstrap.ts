@@ -113,14 +113,15 @@ const DEFAULT_MARKETPLACE_CATEGORIES: Array<Pick<MarketplaceCategory, 'name' | '
 
 type ProductSeed = Pick<
   QrProduct,
-  'name' | 'description' | 'dimensions' | 'priceInr' | 'sortOrder'
+  'name' | 'description' | 'dimensions' | 'imageUrl' | 'priceInr' | 'sortOrder'
 > & { categoryName: string };
 
 const DEFAULT_QR_PRODUCTS: ProductSeed[] = [
   {
     name: 'Acrylic standee — Review QR',
     description: 'Pre-printed standee wired to your review page.',
-    dimensions: '4×6 in',
+    dimensions: '4×6 in (4″ W × 6″ H)',
+    imageUrl: '/marketplace/standee-review-qr.svg',
     priceInr: 349,
     sortOrder: 1,
     categoryName: 'Standees',
@@ -128,7 +129,8 @@ const DEFAULT_QR_PRODUCTS: ProductSeed[] = [
   {
     name: 'Acrylic standee — Menu QR',
     description: 'Menu or catalogue QR for tables and counters.',
-    dimensions: '4×6 in',
+    dimensions: '4×6 in (4″ W × 6″ H)',
+    imageUrl: '/marketplace/standee-menu-qr.svg',
     priceInr: 349,
     sortOrder: 2,
     categoryName: 'Standees',
@@ -136,12 +138,20 @@ const DEFAULT_QR_PRODUCTS: ProductSeed[] = [
   {
     name: 'NFC review card',
     description: 'Tap-to-review card paired with your location.',
-    dimensions: 'CR80',
+    dimensions: '85.6 × 54 mm (3.37″ × 2.13″)',
+    imageUrl: '/marketplace/nfc-review-card.svg',
     priceInr: 499,
     sortOrder: 3,
     categoryName: 'Cards & NFC',
   },
 ];
+
+const DEFAULT_PRODUCT_ASSETS = new Map(
+  DEFAULT_QR_PRODUCTS.map((seed) => [
+    seed.name,
+    { imageUrl: seed.imageUrl, dimensions: seed.dimensions },
+  ]),
+);
 
 @Injectable()
 export class PlatformBootstrap implements OnModuleInit {
@@ -179,6 +189,8 @@ export class PlatformBootstrap implements OnModuleInit {
     } else {
       await this.backfillProductCategories(categoryByName);
     }
+
+    await this.backfillProductAssets();
   }
 
   private async ensureMarketplaceCategories(): Promise<Map<string, MarketplaceCategory>> {
@@ -208,5 +220,33 @@ export class PlatformBootstrap implements OnModuleInit {
       }
     }
     await this.qrProducts.save(uncategorized);
+  }
+
+  private async backfillProductAssets(): Promise<void> {
+    const products = await this.qrProducts.find();
+    const updates: QrProduct[] = [];
+    for (const product of products) {
+      const assets = DEFAULT_PRODUCT_ASSETS.get(product.name);
+      if (!assets) continue;
+      let changed = false;
+      if (!product.imageUrl) {
+        product.imageUrl = assets.imageUrl;
+        changed = true;
+      }
+      if (
+        product.dimensions !== assets.dimensions &&
+        (product.dimensions == null ||
+          product.dimensions === '4×6 in' ||
+          product.dimensions === 'CR80')
+      ) {
+        product.dimensions = assets.dimensions;
+        changed = true;
+      }
+      if (changed) updates.push(product);
+    }
+    if (updates.length > 0) {
+      await this.qrProducts.save(updates);
+      this.logger.log(`Backfilled marketplace assets for ${updates.length} product(s)`);
+    }
   }
 }
