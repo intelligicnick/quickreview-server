@@ -29,6 +29,7 @@ import { PaymentProvider } from '../platform/enums/payment-provider.enum';
 import { PaymentStatus } from '../platform/enums/payment-status.enum';
 import { SubscriptionSource } from '../platform/enums/subscription-source.enum';
 import { SubscriptionStatus } from '../platform/enums/subscription-status.enum';
+import { resolveMarketplaceImageUrl } from '../platform/marketplace-image-url';
 import { menuPublicUrl, qrClaimUrl, reviewPublicUrl } from '../platform/qr-target.util';
 import { QrCodesService } from '../platform/qr-codes.service';
 import { SubscriptionsService } from '../platform/subscriptions.service';
@@ -622,10 +623,15 @@ export class AdminPlatformService {
   }
 
   async listQrProducts() {
-    return this.qrProducts.find({
+    const rows = await this.qrProducts.find({
       order: { sortOrder: 'ASC', name: 'ASC' },
       relations: { category: true },
     });
+    const appUrl = this.appUrl();
+    return rows.map((row) => ({
+      ...row,
+      imageUrl: resolveMarketplaceImageUrl(row.imageUrl, appUrl),
+    }));
   }
 
   async createQrProduct(input: {

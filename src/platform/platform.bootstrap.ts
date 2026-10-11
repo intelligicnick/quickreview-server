@@ -229,7 +229,7 @@ export class PlatformBootstrap implements OnModuleInit {
       const assets = DEFAULT_PRODUCT_ASSETS.get(product.name);
       if (!assets) continue;
       let changed = false;
-      if (!product.imageUrl) {
+      if (product.imageUrl !== assets.imageUrl) {
         product.imageUrl = assets.imageUrl;
         changed = true;
       }

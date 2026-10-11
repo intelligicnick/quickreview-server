@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ERROR_CODES } from '../common/constants';
@@ -18,6 +19,7 @@ import { QrProduct } from './entities/qr-product.entity';
 import { MarketplaceOrderStatus } from './enums/marketplace-order-status.enum';
 import { PaymentKind } from './enums/payment-kind.enum';
 import { PaymentStatus } from './enums/payment-status.enum';
+import { resolveMarketplaceImageUrl } from './marketplace-image-url';
 
 @Injectable()
 export class MarketplaceService {
@@ -28,7 +30,12 @@ export class MarketplaceService {
     @InjectRepository(Payment) private readonly payments: Repository<Payment>,
     @InjectRepository(Location) private readonly locations: Repository<Location>,
     private readonly members: MembersService,
+    private readonly config: ConfigService,
   ) {}
+
+  private appUrl(): string {
+    return this.config.get<string>('APP_URL') ?? 'http://localhost:5173';
+  }
 
   async merchantHub(user: User, locationId: string) {
     const location = await this.getLocationForMember(user, locationId);
@@ -75,7 +82,7 @@ export class MarketplaceService {
         name: row.name,
         description: row.description,
         dimensions: row.dimensions,
-        imageUrl: row.imageUrl,
+        imageUrl: resolveMarketplaceImageUrl(row.imageUrl, this.appUrl()),
         priceInr: row.priceInr,
       })),
       orders: orderRows.map((row) => this.serializeOrder(row, pendingByOrder.get(row.id) ?? null)),
