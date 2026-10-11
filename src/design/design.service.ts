@@ -76,7 +76,7 @@ export class DesignService {
   ) {}
 
   async merchantHub(user: User, locationId: string) {
-    const location = await this.assertManager(user, locationId);
+    const location = await this.assertMember(user, locationId);
     const [rows, quota, access] = await Promise.all([
       this.posters.find({
         where: { locationId },
@@ -421,6 +421,15 @@ export class DesignService {
   private async keywordsForLocation(locationId: string): Promise<string[]> {
     const row = await this.reviewSettings.findOne({ where: { locationId } });
     return row?.keywords ?? [];
+  }
+
+  private async assertMember(user: User, locationId: string): Promise<Location> {
+    const location = await this.locations.findOne({ where: { id: locationId } });
+    if (!location) {
+      throw new NotFoundException('Location not found');
+    }
+    await this.members.assertMember(user, location.businessId);
+    return location;
   }
 
   private async assertManager(user: User, locationId: string): Promise<Location> {

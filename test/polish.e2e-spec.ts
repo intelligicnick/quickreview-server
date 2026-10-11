@@ -120,6 +120,18 @@ describe('Polish — QR claim & AI drafts', () => {
     expect(drafts.body.data.suggestions.length).toBeGreaterThanOrEqual(3);
   });
 
+  it('loads QuickDesign hub for a location', async () => {
+    const { token, locationId } = await ownerWithLocation();
+    await activateReviewTrial(token, locationId);
+
+    const hub = await request(app.getHttpServer())
+      .get(`/api/locations/${locationId}/quickdesign`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    expect(hub.body.data.locationName).toBeTruthy();
+    expect(Array.isArray(hub.body.data.posters)).toBe(true);
+  });
+
   it('accepts legacy suggestions requests without answers', async () => {
     const { token, locationId } = await ownerWithLocation();
     await activateReviewTrial(token, locationId);

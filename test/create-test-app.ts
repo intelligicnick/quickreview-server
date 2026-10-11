@@ -9,6 +9,7 @@ import { AdminModule } from '../src/admin/admin.module';
 import { ContactMessagesModule } from '../src/contact/contact-messages.module';
 import { PlatformModule } from '../src/platform/platform.module';
 import { ConnectModule } from '../src/connect/connect.module';
+import { DesignModule } from '../src/design/design.module';
 import { MenuModule } from '../src/menu/menu.module';
 import { ReviewModule } from '../src/review/review.module';
 import { AuthModule } from '../src/auth/auth.module';
@@ -64,6 +65,7 @@ export async function createTestApp(): Promise<{
       AdminModule,
       ReviewModule,
       ConnectModule,
+      DesignModule,
       MenuModule,
     ],
     controllers: [HealthController],
