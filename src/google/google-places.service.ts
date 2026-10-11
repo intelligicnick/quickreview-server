@@ -14,7 +14,7 @@ type PlacesPlace = {
   nationalPhoneNumber?: string;
   websiteUri?: string;
   primaryType?: string;
-  primaryTypeDisplayName?: string;
+  primaryTypeDisplayName?: string | { text?: string };
   types?: string[];
   rating?: number;
   userRatingCount?: number;
@@ -199,6 +199,15 @@ export class GooglePlacesService {
     };
   }
 
+  private localizedText(value?: string | { text?: string }): string | null {
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      return trimmed || null;
+    }
+    const trimmed = value?.text?.trim();
+    return trimmed || null;
+  }
+
   private toSnapshot(place: PlacesPlace): PlaceSnapshot | null {
     const placeId = place.id?.replace(/^places\//, '') ?? '';
     const name = place.displayName?.text?.trim();
@@ -210,7 +219,7 @@ export class GooglePlacesService {
       phone: place.nationalPhoneNumber?.trim() || null,
       website: place.websiteUri?.trim() || null,
       primaryType: place.primaryType?.trim() || null,
-      primaryTypeDisplay: place.primaryTypeDisplayName?.trim() || null,
+      primaryTypeDisplay: this.localizedText(place.primaryTypeDisplayName),
       types: place.types ?? [],
       rating: typeof place.rating === 'number' ? place.rating : null,
       reviewCount: typeof place.userRatingCount === 'number' ? place.userRatingCount : null,

@@ -90,7 +90,7 @@ const DEFAULT_PLANS: Array<Pick<Plan, 'code' | 'name' | 'product' | 'amountInr' 
     },
     {
       code: 'quickcrm_trial',
-      name: 'Quick CRM trial',
+      name: 'CRM trial',
       product: BillingProduct.QUICK_CRM,
       amountInr: 0,
       durationDays: 7,
@@ -98,7 +98,7 @@ const DEFAULT_PLANS: Array<Pick<Plan, 'code' | 'name' | 'product' | 'amountInr' 
     },
     {
       code: 'quickcrm_monthly',
-      name: 'Quick CRM monthly',
+      name: 'CRM monthly',
       product: BillingProduct.QUICK_CRM,
       amountInr: 299,
       durationDays: 30,
