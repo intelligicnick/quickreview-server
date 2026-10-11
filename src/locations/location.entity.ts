@@ -11,6 +11,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { newId } from '../common/utils/crypto';
+import { jsonStringArrayTransformer } from '../common/utils/json-string-array';
 import { Business } from '../businesses/business.entity';
 import { BusinessCategory } from '../catalog/business-category.enum';
 import { CatalogType } from '../catalog/catalog-type.enum';
@@ -65,7 +66,7 @@ export class Location {
   @Column({ type: 'varchar', length: 32, nullable: true })
   businessCategory: BusinessCategory | null;
 
-  @Column({ type: 'json' })
+  @Column({ type: 'text', transformer: jsonStringArrayTransformer })
   businessSubcategories: string[];
 
   @Column({ type: 'varchar', length: 16, nullable: true })

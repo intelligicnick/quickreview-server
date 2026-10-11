@@ -23,6 +23,7 @@ import { DesignGeneration } from '../design/design-generation.entity';
 import { DesignPoster } from '../design/design-poster.entity';
 import { ScannedContact } from '../scan/scanned-contact.entity';
 import { PLATFORM_ENTITIES } from '../platform/platform.module';
+import { safeMysqlTypeCast } from './safe-mysql-type-cast';
 import { LocationRevisitSettings } from '../revisit/location-revisit-settings.entity';
 import { RevisitCustomerReward } from '../revisit/revisit-customer-reward.entity';
 import { RevisitCustomer } from '../revisit/revisit-customer.entity';
@@ -75,6 +76,7 @@ export const ENTITIES = [
           migrations: [join(__dirname, 'migrations/*.{ts,js}')],
           migrationsRun: migrationsRun && !sync,
           logging: config.get<string>('NODE_ENV') === 'development' ? ['error'] : ['error'],
+          extra: { typeCast: safeMysqlTypeCast },
         };
       },
     }),
