@@ -5,6 +5,11 @@ import { BillingProduct } from './enums/billing-product.enum';
 import { MarketplaceCategory } from './entities/marketplace-category.entity';
 import { Plan } from './entities/plan.entity';
 import { QrProduct } from './entities/qr-product.entity';
+import {
+  DEFAULT_QR_PRODUCT_SEEDS,
+  defaultAssetsForProductName,
+  upgradeMarketplaceImageUrl,
+} from './marketplace-product-defaults';
 
 const DEFAULT_PLANS: Array<Pick<Plan, 'code' | 'name' | 'product' | 'amountInr' | 'durationDays' | 'sortOrder'>> =
   [
@@ -116,41 +121,16 @@ type ProductSeed = Pick<
   'name' | 'description' | 'dimensions' | 'imageUrl' | 'priceInr' | 'sortOrder'
 > & { categoryName: string };
 
-const DEFAULT_QR_PRODUCTS: ProductSeed[] = [
-  {
-    name: 'Acrylic standee — Review QR',
-    description: 'Pre-printed standee wired to your review page.',
-    dimensions: '4×6 in (4″ W × 6″ H)',
-    imageUrl: '/marketplace/standee-review-qr.svg',
-    priceInr: 349,
-    sortOrder: 1,
-    categoryName: 'Standees',
-  },
-  {
-    name: 'Acrylic standee — Menu QR',
-    description: 'Menu or catalogue QR for tables and counters.',
-    dimensions: '4×6 in (4″ W × 6″ H)',
-    imageUrl: '/marketplace/standee-menu-qr.svg',
-    priceInr: 349,
-    sortOrder: 2,
-    categoryName: 'Standees',
-  },
-  {
-    name: 'NFC review card',
-    description: 'Tap-to-review card paired with your location.',
-    dimensions: '85.6 × 54 mm (3.37″ × 2.13″)',
-    imageUrl: '/marketplace/nfc-review-card.svg',
-    priceInr: 499,
-    sortOrder: 3,
-    categoryName: 'Cards & NFC',
-  },
-];
-
-const DEFAULT_PRODUCT_ASSETS = new Map(
-  DEFAULT_QR_PRODUCTS.map((seed) => [
-    seed.name,
-    { imageUrl: seed.imageUrl, dimensions: seed.dimensions },
-  ]),
+const DEFAULT_QR_PRODUCTS: ProductSeed[] = DEFAULT_QR_PRODUCT_SEEDS.map(
+  ({ categoryName, name, description, dimensions, imageUrl, priceInr, sortOrder }) => ({
+    categoryName,
+    name,
+    description,
+    dimensions,
+    imageUrl,
+    priceInr,
+    sortOrder,
+  }),
 );
 
 @Injectable()
@@ -226,11 +206,13 @@ export class PlatformBootstrap implements OnModuleInit {
     const products = await this.qrProducts.find();
     const updates: QrProduct[] = [];
     for (const product of products) {
-      const assets = DEFAULT_PRODUCT_ASSETS.get(product.name);
+      const assets = defaultAssetsForProductName(product.name);
       if (!assets) continue;
       let changed = false;
-      if (product.imageUrl !== assets.imageUrl) {
-        product.imageUrl = assets.imageUrl;
+      const upgradedUrl = upgradeMarketplaceImageUrl(product.imageUrl);
+      const targetUrl = upgradedUrl ?? assets.imageUrl;
+      if (!product.imageUrl || product.imageUrl !== targetUrl) {
+        product.imageUrl = targetUrl;
         changed = true;
       }
       if (

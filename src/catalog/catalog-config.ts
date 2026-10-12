@@ -132,7 +132,7 @@ const COPY_BY_CATEGORY: Record<BusinessCategory, CatalogCopy> = {
     unavailableItem: 'Out of stock',
     showVegBadge: false,
     presentation: 'list',
-    tabs: tabsFor('Products', { label: 'Categories', enabled: false }, { label: 'Offers' }, 'Out of stock'),
+    tabs: tabsFor('Products', { label: 'Categories' }, { label: 'Offers' }, 'Out of stock'),
   },
   [BusinessCategory.JEWELLERY]: {
     productName: 'Catalogue',
@@ -166,7 +166,7 @@ const COPY_BY_CATEGORY: Record<BusinessCategory, CatalogCopy> = {
     unavailableItem: 'Out of stock',
     showVegBadge: false,
     presentation: 'grid',
-    tabs: tabsFor('Products', { label: 'Categories', enabled: false }, { label: 'Offers' }, 'Out of stock'),
+    tabs: tabsFor('Products', { label: 'Categories' }, { label: 'Offers' }, 'Out of stock'),
   },
   [BusinessCategory.ELECTRONICS]: {
     productName: 'Products',
@@ -183,7 +183,7 @@ const COPY_BY_CATEGORY: Record<BusinessCategory, CatalogCopy> = {
     unavailableItem: 'Out of stock',
     showVegBadge: false,
     presentation: 'grid',
-    tabs: tabsFor('Products', { label: 'Categories', enabled: false }, { label: 'Offers' }, 'Out of stock'),
+    tabs: tabsFor('Products', { label: 'Categories' }, { label: 'Offers' }, 'Out of stock'),
   },
   [BusinessCategory.PHARMACY]: {
     productName: 'Products',
@@ -200,7 +200,7 @@ const COPY_BY_CATEGORY: Record<BusinessCategory, CatalogCopy> = {
     unavailableItem: 'Out of stock',
     showVegBadge: false,
     presentation: 'list',
-    tabs: tabsFor('Products', { label: 'Categories', enabled: false }, { label: 'Offers' }, 'Out of stock'),
+    tabs: tabsFor('Products', { label: 'Categories' }, { label: 'Offers' }, 'Out of stock'),
   },
   [BusinessCategory.BEAUTY]: {
     productName: 'Services',
@@ -251,7 +251,7 @@ const COPY_BY_CATEGORY: Record<BusinessCategory, CatalogCopy> = {
     unavailableItem: 'Out of stock',
     showVegBadge: false,
     presentation: 'list',
-    tabs: tabsFor('Products', { label: 'Categories', enabled: false }, { label: 'Offers' }, 'Out of stock'),
+    tabs: tabsFor('Products', { label: 'Categories' }, { label: 'Offers' }, 'Out of stock'),
   },
   [BusinessCategory.SERVICES]: {
     productName: 'Services',
@@ -285,7 +285,7 @@ const COPY_BY_CATEGORY: Record<BusinessCategory, CatalogCopy> = {
     unavailableItem: 'Out of stock',
     showVegBadge: false,
     presentation: 'grid',
-    tabs: tabsFor('Products', { label: 'Categories', enabled: false }, { label: 'Offers' }, 'Out of stock'),
+    tabs: tabsFor('Products', { label: 'Categories' }, { label: 'Offers' }, 'Out of stock'),
   },
   [BusinessCategory.GENERAL]: {
     productName: 'Products',
