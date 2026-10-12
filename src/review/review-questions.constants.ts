@@ -1,14 +1,14 @@
 export const DEFAULT_REVIEW_QUESTIONS = [
   'What did you enjoy most about your visit?',
-  'Was there anything that stood out? (staff, ambiance, service…)',
-  'Who would you recommend us to?',
+  'Was there anything that stood out? (optional)',
+  'Who would you recommend us to? (optional)',
 ];
 
 /** Three quick-pick chips per default question (enjoy / stood out / recommend). */
 export const DEFAULT_ANSWER_OPTIONS_BY_QUESTION: readonly (readonly string[])[] = [
-  ['Friendly staff', 'Great food', 'Ambience'],
-  ['Fast service', 'Clean place', 'Good value'],
-  ['Friends & family', 'Date night', 'Food lovers'],
+  ['Friendly staff', 'Great quality', 'Welcoming atmosphere'],
+  ['Fast service', 'Clean & tidy', 'Good value'],
+  ['Friends & family', 'Colleagues', 'Anyone nearby'],
 ];
 
 const CHIPS_PER_QUESTION = 3;

@@ -1,13 +1,18 @@
 export type MarketplaceProductAssets = { imageUrl: string; dimensions: string };
 
 const STANDEE_REVIEW: MarketplaceProductAssets = {
-  imageUrl: '/marketplace/standee-review-qr.png',
+  imageUrl: '/marketplace/standee-review-4x6.svg',
   dimensions: '4×6 in (4″ W × 6″ H)',
 };
 
 const STANDEE_MENU: MarketplaceProductAssets = {
-  imageUrl: '/marketplace/standee-menu-qr.png',
+  imageUrl: '/marketplace/standee-menu-4x6.svg',
   dimensions: '4×6 in (4″ W × 6″ H)',
+};
+
+const TENT_MENU_5X7: MarketplaceProductAssets = {
+  imageUrl: '/marketplace/tent-menu-5x7.svg',
+  dimensions: '5×7 in (5″ W × 7″ H)',
 };
 
 const NFC_CARD: MarketplaceProductAssets = {
@@ -18,10 +23,20 @@ const NFC_CARD: MarketplaceProductAssets = {
 const LEGACY_IMAGE_UPGRADES: Record<string, string> = {
   '/marketplace/standee-review-qr.svg': STANDEE_REVIEW.imageUrl,
   '/marketplace/standee-menu-qr.svg': STANDEE_MENU.imageUrl,
+  '/marketplace/standee-review-qr.png': STANDEE_REVIEW.imageUrl,
+  '/marketplace/standee-menu-qr.png': STANDEE_MENU.imageUrl,
 };
 
 export function defaultAssetsForProductName(name: string): MarketplaceProductAssets | null {
   const lower = name.toLowerCase();
+  if (
+    lower.includes('tent') ||
+    lower.includes('5×7') ||
+    lower.includes('5x7') ||
+    (lower.includes('quickcommerce') && lower.includes('menu'))
+  ) {
+    return TENT_MENU_5X7;
+  }
   if (lower.includes('menu') && lower.includes('qr')) return STANDEE_MENU;
   if (lower.includes('nfc') || (lower.includes('card') && lower.includes('review'))) return NFC_CARD;
   if (lower.includes('standee') || (lower.includes('review') && lower.includes('qr'))) return STANDEE_REVIEW;
@@ -54,11 +69,19 @@ export const DEFAULT_QR_PRODUCT_SEEDS: Array<
     categoryName: 'Standees',
   },
   {
+    name: 'Menu table tent — QuickCommerce',
+    description: '5×7 triangle tent with menu QR for tables.',
+    ...TENT_MENU_5X7,
+    priceInr: 399,
+    sortOrder: 3,
+    categoryName: 'Standees',
+  },
+  {
     name: 'NFC review card',
     description: 'Tap-to-review card paired with your location.',
     ...NFC_CARD,
     priceInr: 499,
-    sortOrder: 3,
+    sortOrder: 4,
     categoryName: 'Cards & NFC',
   },
 ];
