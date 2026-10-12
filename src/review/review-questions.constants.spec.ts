@@ -14,6 +14,6 @@ describe('resolveAnswerOptionsPerQuestion', () => {
   it('puts merchant keywords on the first question only', () => {
     const rows = resolveAnswerOptionsPerQuestion(['Biryani', 'friendly staff'], 3);
     expect(rows[0][0]).toBe('Biryani');
-    expect(rows[1][0]).toBe('Fast service');
+    expect(rows[1][0]).toBe('On time');
   });
 });

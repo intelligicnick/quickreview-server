@@ -6,7 +6,7 @@ export async function geminiGenerateText(
   apiKey: string,
   model: string,
   prompt: string,
-  options?: { temperature?: number; maxOutputTokens?: number },
+  options?: { temperature?: number; maxOutputTokens?: number; json?: boolean },
 ): Promise<string> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
   const response = await fetch(url, {
@@ -17,6 +17,7 @@ export async function geminiGenerateText(
       generationConfig: {
         temperature: options?.temperature ?? 0.85,
         maxOutputTokens: options?.maxOutputTokens ?? 2048,
+        ...(options?.json ? { responseMimeType: 'application/json' } : {}),
       },
     }),
   });
@@ -104,6 +105,13 @@ export async function geminiExtractJsonFromImages(
 export function extractJsonObject(raw: string): string {
   const start = raw.indexOf('{');
   const end = raw.lastIndexOf('}');
+  if (start >= 0 && end > start) return raw.slice(start, end + 1);
+  return raw;
+}
+
+export function extractJsonArray(raw: string): string {
+  const start = raw.indexOf('[');
+  const end = raw.lastIndexOf(']');
   if (start >= 0 && end > start) return raw.slice(start, end + 1);
   return raw;
 }

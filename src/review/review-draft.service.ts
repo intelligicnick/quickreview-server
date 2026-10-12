@@ -1,11 +1,37 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { BusinessCategory } from '../catalog/business-category.enum';
+import { extractJsonArray, geminiGenerateText } from '../common/utils/gemini-client';
 import { Location } from '../locations/location.entity';
 import type { ReviewDraftAnswer } from './review-questions.constants';
+
+function businessTypeHint(category: BusinessCategory | null | undefined): string | null {
+  if (!category) return null;
+  switch (category) {
+    case BusinessCategory.SERVICES:
+      return 'Professional / B2B services — avoid food or “meal” language unless the customer mentioned it.';
+    case BusinessCategory.RESTAURANT:
+    case BusinessCategory.BAKERY:
+      return 'Restaurant or café — food and dining context is appropriate when the customer mentioned it.';
+    case BusinessCategory.BEAUTY:
+      return 'Salon or beauty — focus on service results and hygiene when relevant.';
+    default:
+      return `Business type: ${category.replace(/_/g, ' ')}. Match the customer’s words, not a generic template.`;
+  }
+}
 
 function pickOne<T>(items: T[]): T | null {
   if (!items.length) return null;
   return items[Math.floor(Math.random() * items.length)]!;
+}
+
+function shuffle<T>(items: T[]): T[] {
+  const out = [...items];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
 }
 
 @Injectable()
@@ -25,12 +51,18 @@ export class ReviewDraftService {
     if (apiKey && apiKey !== 'mock') {
       try {
         const fromGemini = await this.geminiDrafts(location, stars, normalizedKeywords, answers, apiKey);
-        if (fromGemini.length >= 1) return fromGemini.slice(0, 3);
+        if (fromGemini.length >= 1) return shuffle(fromGemini).slice(0, 4);
       } catch (err) {
         this.logger.warn(`Gemini drafts failed, using templates: ${String(err)}`);
       }
     }
-    return this.templateDrafts(location.name, stars, normalizedKeywords, answers);
+    return this.templateDrafts(
+      location.name,
+      location.businessCategory,
+      stars,
+      normalizedKeywords,
+      answers,
+    );
   }
 
   private formatAnswers(answers: ReviewDraftAnswer[]): string {
@@ -39,6 +71,7 @@ export class ReviewDraftService {
 
   private templateDrafts(
     name: string,
+    category: BusinessCategory | null | undefined,
     stars: number,
     keywords: string[],
     answers: ReviewDraftAnswer[],
@@ -47,14 +80,22 @@ export class ReviewDraftService {
     const extra = answers[1]?.answer;
     const bit = highlight.trim();
     const more = extra?.trim();
-    const base = more
-      ? `Had a ${stars}-star visit at ${name}. Loved the ${bit.toLowerCase()} — ${more}. Would recommend.`
-      : `Had a ${stars}-star visit at ${name}. The ${bit.toLowerCase()} really stood out. Would come back.`;
-    const alt = `Worth the visit — ${name} delivered on ${bit.toLowerCase()}${more ? ` and ${more.toLowerCase()}` : ''}. I'd go again.`;
-    const alt2 = more
-      ? `If you want ${more.toLowerCase()} and a welcoming vibe, try ${name}. Left with a ${stars}-star feeling.`
-      : `Friends keep asking where I went — ${name} nailed the ${bit.toLowerCase()}. Genuine ${stars}-star experience.`;
-    return [base, alt, alt2];
+    const at = category === BusinessCategory.SERVICES ? 'working with' : 'at';
+    const openings = shuffle([
+      more
+        ? `${stars}-star experience ${at} ${name}. ${bit} — ${more}. Would recommend.`
+        : `${stars}-star experience ${at} ${name}. ${bit} really stood out. Would use them again.`,
+      `${name} delivered on ${bit.toLowerCase()}${more ? ` and ${more.toLowerCase()}` : ''}. Happy to recommend.`,
+      more
+        ? `If you need ${more.toLowerCase()}, ${name} is a solid choice. ${bit} — ${stars} stars from me.`
+        : `Genuinely impressed with ${name} — especially ${bit.toLowerCase()}. ${stars}-star experience.`,
+      pickOne([
+        `I'd choose ${name} again. ${bit}${more ? `; ${more}` : ''}.`,
+        `Clear ${stars}-star experience ${at} ${name}: ${bit}.`,
+        `Recommend ${name} — ${bit.toLowerCase()}${more ? ` and ${more.toLowerCase()}` : ''} made the difference.`,
+      ]) ?? `Solid ${stars}-star experience ${at} ${name}. ${bit}.`,
+    ]);
+    return openings;
   }
 
   private async geminiDrafts(
@@ -67,56 +108,44 @@ export class ReviewDraftService {
     const model = this.config.get<string>('GEMINI_MODEL') ?? 'gemini-2.0-flash';
     const prompt = answers.length
       ? [
-          'Write 3 short, authentic Google review drafts in the customer\'s voice (first person).',
+          'Frame 4 short, authentic Google review drafts in the customer\'s voice (first person).',
           'Base the text ONLY on the customer answers below — do not invent staff names, offers, or facts they did not mention.',
-          'Return ONLY a JSON array of 3 strings, no markdown.',
-          `Business: ${location.name}`,
-          location.address ? `Address hint: ${location.address}` : null,
-          `Star rating they chose: ${stars} out of 5`,
-          'Customer answers:',
-          this.formatAnswers(answers),
-          keywords.length ? `If natural, weave in one of these business themes: ${keywords.join(', ')}` : null,
-          'Rules: casual tone, 1-3 sentences each, no hashtags.',
-          'Drafts 2 and 3 must be completely rephrased — different openings and sentence structure, no reused phrases from draft 1.',
-        ]
-      : [
-          'Write 4 short, authentic Google review drafts for a customer.',
           'Return ONLY a JSON array of 4 strings, no markdown.',
           `Business: ${location.name}`,
           location.address ? `Address hint: ${location.address}` : null,
+          businessTypeHint(location.businessCategory),
+          `Star rating they chose: ${stars} out of 5`,
+          'Customer answers:',
+          this.formatAnswers(answers),
+          keywords.length
+            ? `Merchant themes (use ONLY if the customer’s answers clearly relate — never force unrelated words): ${keywords.join(', ')}`
+            : null,
+          'Rules: casual tone, 1-3 sentences each, no hashtags. Mirror the customer’s facts; do not invent offers, names, or dishes.',
+          'Each draft must use a different opening and structure — no reused phrases between drafts.',
+          'Vary length slightly (one shorter, one medium, one longer) across the four.',
+        ]
+      : [
+          'Frame 4 short, authentic Google review drafts for a customer.',
+          'Return ONLY a JSON array of 4 strings, no markdown.',
+          `Business: ${location.name}`,
+          location.address ? `Address hint: ${location.address}` : null,
+          businessTypeHint(location.businessCategory),
           `Star rating: ${stars} out of 5`,
-          keywords.length ? `Naturally mention one of these when relevant: ${keywords.join(', ')}` : null,
+          keywords.length
+            ? `Merchant themes (only if they fit): ${keywords.join(', ')}`
+            : null,
           'Rules: casual tone, 1-3 sentences each, no hashtags, no fake staff names.',
         ];
     const promptText = prompt.filter(Boolean).join('\n');
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: promptText }] }],
-        generationConfig: { temperature: 0.85, maxOutputTokens: 1024 },
-      }),
+    const text = await geminiGenerateText(apiKey, model, promptText, {
+      temperature: 0.95,
+      maxOutputTokens: 1536,
+      json: true,
     });
-    if (!response.ok) {
-      throw new Error(`Gemini HTTP ${response.status}`);
-    }
-    const payload = (await response.json()) as {
-      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-    };
-    const text = payload.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-    if (!text) throw new Error('Empty Gemini response');
 
-    const parsed = JSON.parse(this.extractJsonArray(text)) as unknown;
+    const parsed = JSON.parse(extractJsonArray(text)) as unknown;
     if (!Array.isArray(parsed)) throw new Error('Gemini did not return an array');
     return parsed.filter((row): row is string => typeof row === 'string' && row.trim().length > 3);
-  }
-
-  private extractJsonArray(raw: string): string {
-    const start = raw.indexOf('[');
-    const end = raw.lastIndexOf(']');
-    if (start >= 0 && end > start) return raw.slice(start, end + 1);
-    return raw;
   }
 }

@@ -24,6 +24,7 @@ import {
   type ReviewDraftAnswer,
 } from './review-questions.constants';
 import { ReviewDraftService } from './review-draft.service';
+import { reviewAiPresetForCategory } from './review-ai-presets';
 import { ReviewDraftAnswerDto } from './dto/review-settings.dto';
 import { ReviewEventKind } from './review-event-kind.enum';
 import { ReviewEvent } from './review-event.entity';
@@ -78,7 +79,7 @@ export class ReviewService {
       code: location.reviewCode,
       name: location.name,
       address: location.address,
-      category: location.business?.category ?? null,
+      category: location.businessCategory ?? location.business?.category ?? null,
       googlePlaceId: placeId,
       googleReviewUrl: placeId ? googleWriteReviewUrl(placeId) : null,
       reviewQuestions,
@@ -243,7 +244,12 @@ export class ReviewService {
       reviewUnlocked: reviewAccess.unlocked,
       reviewAccess,
       aiKeywords: settings.keywords ?? [],
-      aiReviewQuestions: resolveReviewQuestions(settings.reviewQuestions),
+      aiReviewQuestions: (settings.reviewQuestions ?? [])
+        .map((q) => String(q).trim())
+        .filter(Boolean),
+      guestReviewQuestions: resolveReviewQuestions(settings.reviewQuestions),
+      businessCategory: location.businessCategory ?? null,
+      suggestedReviewAi: reviewAiPresetForCategory(location.businessCategory),
       stats: {
         pageViews,
         stars,
