@@ -19,6 +19,7 @@ import { RecordReviewEventDto } from './dto/public-review.dto';
 import { LocationReviewSettings } from './location-review-settings.entity';
 import {
   normalizeDraftAnswers,
+  resolveAnswerOptions,
   resolveReviewQuestions,
   type ReviewDraftAnswer,
 } from './review-questions.constants';
@@ -80,6 +81,7 @@ export class ReviewService {
       googlePlaceId: placeId,
       googleReviewUrl: placeId ? googleWriteReviewUrl(placeId) : null,
       reviewQuestions: resolveReviewQuestions(settings.reviewQuestions),
+      answerOptions: resolveAnswerOptions(settings.keywords),
     };
   }
 

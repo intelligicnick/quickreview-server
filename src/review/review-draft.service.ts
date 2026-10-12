@@ -45,11 +45,16 @@ export class ReviewDraftService {
   ): string[] {
     const highlight = answers[0]?.answer ?? pickOne(keywords) ?? 'great service';
     const extra = answers[1]?.answer;
-    const base = extra
-      ? `Had a ${stars}-star visit at ${name}. ${highlight}. ${extra}. Would recommend.`
-      : `Had a ${stars}-star visit at ${name} — especially ${highlight}. Friendly team and would come back.`;
-    const alt = `${name} delivered exactly what I needed. ${highlight}. Happy to recommend.`;
-    return [base, alt, `Really pleased with ${name}. ${highlight}. Left a ${stars}-star review on Google.`];
+    const bit = highlight.trim();
+    const more = extra?.trim();
+    const base = more
+      ? `Had a ${stars}-star visit at ${name}. Loved the ${bit.toLowerCase()} — ${more}. Would recommend.`
+      : `Had a ${stars}-star visit at ${name}. The ${bit.toLowerCase()} really stood out. Would come back.`;
+    const alt = `Worth the visit — ${name} delivered on ${bit.toLowerCase()}${more ? ` and ${more.toLowerCase()}` : ''}. I'd go again.`;
+    const alt2 = more
+      ? `If you want ${more.toLowerCase()} and a welcoming vibe, try ${name}. Left with a ${stars}-star feeling.`
+      : `Friends keep asking where I went — ${name} nailed the ${bit.toLowerCase()}. Genuine ${stars}-star experience.`;
+    return [base, alt, alt2];
   }
 
   private async geminiDrafts(
@@ -71,7 +76,8 @@ export class ReviewDraftService {
           'Customer answers:',
           this.formatAnswers(answers),
           keywords.length ? `If natural, weave in one of these business themes: ${keywords.join(', ')}` : null,
-          'Rules: casual tone, 1-3 sentences each, no hashtags, varied wording across the 3 drafts.',
+          'Rules: casual tone, 1-3 sentences each, no hashtags.',
+          'Drafts 2 and 3 must be completely rephrased — different openings and sentence structure, no reused phrases from draft 1.',
         ]
       : [
           'Write 4 short, authentic Google review drafts for a customer.',

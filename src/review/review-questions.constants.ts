@@ -4,6 +4,29 @@ export const DEFAULT_REVIEW_QUESTIONS = [
   'Who would you recommend us to?',
 ];
 
+export const DEFAULT_ANSWER_OPTIONS = [
+  'Friendly staff',
+  'Great food',
+  'Ambience',
+  'Fast service',
+  'Clean place',
+  'Good value',
+];
+
+/** Quick-pick chips on the public review form; merchant keywords appear first. */
+export function resolveAnswerOptions(keywords: string[] | null | undefined): string[] {
+  const fromMerchant = (keywords ?? []).map((k) => k.trim()).filter(Boolean).slice(0, 12);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const label of [...fromMerchant, ...DEFAULT_ANSWER_OPTIONS]) {
+    const key = label.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(label);
+  }
+  return out.slice(0, 14);
+}
+
 export function resolveReviewQuestions(custom: string[] | null | undefined): string[] {
   const fromSettings = (custom ?? []).map((q) => q.trim()).filter(Boolean).slice(0, 5);
   if (fromSettings.length) return fromSettings;
