@@ -4,27 +4,44 @@ export const DEFAULT_REVIEW_QUESTIONS = [
   'Who would you recommend us to?',
 ];
 
-export const DEFAULT_ANSWER_OPTIONS = [
-  'Friendly staff',
-  'Great food',
-  'Ambience',
-  'Fast service',
-  'Clean place',
-  'Good value',
+/** Three quick-pick chips per default question (enjoy / stood out / recommend). */
+export const DEFAULT_ANSWER_OPTIONS_BY_QUESTION: readonly (readonly string[])[] = [
+  ['Friendly staff', 'Great food', 'Ambience'],
+  ['Fast service', 'Clean place', 'Good value'],
+  ['Friends & family', 'Date night', 'Food lovers'],
 ];
 
-/** Quick-pick chips on the public review form; merchant keywords appear first. */
-export function resolveAnswerOptions(keywords: string[] | null | undefined): string[] {
-  const fromMerchant = (keywords ?? []).map((k) => k.trim()).filter(Boolean).slice(0, 12);
+const CHIPS_PER_QUESTION = 3;
+
+function pickUniqueLabels(labels: string[], limit: number): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
-  for (const label of [...fromMerchant, ...DEFAULT_ANSWER_OPTIONS]) {
-    const key = label.toLowerCase();
+  for (const label of labels) {
+    const trimmed = label.trim();
+    if (!trimmed) continue;
+    const key = trimmed.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
-    out.push(label);
+    out.push(trimmed);
+    if (out.length >= limit) break;
   }
-  return out.slice(0, 14);
+  return out;
+}
+
+/** Quick-pick chips aligned with each review question; Q1 prefers merchant keywords. */
+export function resolveAnswerOptionsPerQuestion(
+  keywords: string[] | null | undefined,
+  questionCount: number,
+): string[][] {
+  const fromMerchant = (keywords ?? []).map((k) => k.trim()).filter(Boolean);
+  const templates = DEFAULT_ANSWER_OPTIONS_BY_QUESTION;
+  const out: string[][] = [];
+  for (let i = 0; i < questionCount; i++) {
+    const defaults = templates[i] ?? templates[i % templates.length];
+    const pool = i === 0 && fromMerchant.length ? [...fromMerchant, ...defaults] : [...defaults];
+    out.push(pickUniqueLabels(pool, CHIPS_PER_QUESTION));
+  }
+  return out;
 }
 
 export function resolveReviewQuestions(custom: string[] | null | undefined): string[] {

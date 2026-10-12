@@ -19,7 +19,7 @@ import { RecordReviewEventDto } from './dto/public-review.dto';
 import { LocationReviewSettings } from './location-review-settings.entity';
 import {
   normalizeDraftAnswers,
-  resolveAnswerOptions,
+  resolveAnswerOptionsPerQuestion,
   resolveReviewQuestions,
   type ReviewDraftAnswer,
 } from './review-questions.constants';
@@ -73,6 +73,7 @@ export class ReviewService {
     await this.record(location.id, ReviewEventKind.PAGE_VIEW, null, null);
     const placeId = location.googlePlaceId ?? parseGooglePlaceId(location.googleReviewUrl);
     const settings = await this.ensureSettingsRow(location.id);
+    const reviewQuestions = resolveReviewQuestions(settings.reviewQuestions);
     return {
       code: location.reviewCode,
       name: location.name,
@@ -80,8 +81,11 @@ export class ReviewService {
       category: location.business?.category ?? null,
       googlePlaceId: placeId,
       googleReviewUrl: placeId ? googleWriteReviewUrl(placeId) : null,
-      reviewQuestions: resolveReviewQuestions(settings.reviewQuestions),
-      answerOptions: resolveAnswerOptions(settings.keywords),
+      reviewQuestions,
+      answerOptionsPerQuestion: resolveAnswerOptionsPerQuestion(
+        settings.keywords,
+        reviewQuestions.length,
+      ),
     };
   }
 

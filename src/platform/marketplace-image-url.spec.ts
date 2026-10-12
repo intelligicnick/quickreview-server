@@ -6,9 +6,15 @@ describe('marketplace-image-url', () => {
     expect(normalizeMarketplaceImagePath('/marketplace/foo.svg')).toBe('/marketplace/foo.svg');
   });
 
-  it('resolves against APP_URL', () => {
+  it('keeps catalog paths relative for the SPA', () => {
     expect(resolveMarketplaceImageUrl('/marketplace/foo.svg', 'https://www.example.com')).toBe(
-      'https://www.example.com/marketplace/foo.svg',
+      '/marketplace/foo.svg',
+    );
+    expect(
+      resolveMarketplaceImageUrl('https://www.example.com/marketplace/foo.svg', null),
+    ).toBe('/marketplace/foo.svg');
+    expect(resolveMarketplaceImageUrl('https://cdn.example.com/photo.jpg', null)).toBe(
+      'https://cdn.example.com/photo.jpg',
     );
   });
 });
