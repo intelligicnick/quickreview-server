@@ -34,6 +34,74 @@ function shuffle<T>(items: T[]): T[] {
   return out;
 }
 
+const REVIEW_DRAFT_COUNT = 2;
+
+function splitAnswerPhrases(answers: ReviewDraftAnswer[]): string[] {
+  const phrases: string[] = [];
+  for (const row of answers) {
+    for (const part of row.answer.split(/[,;]+/)) {
+      const trimmed = part.trim();
+      if (trimmed.length >= 2) phrases.push(trimmed);
+    }
+  }
+  return phrases;
+}
+
+function significantWords(text: string): Set<string> {
+  const stop = new Set([
+    'about', 'after', 'again', 'also', 'been', 'from', 'have', 'just', 'more', 'much',
+    'really', 'than', 'that', 'this', 'they', 'very', 'were', 'with', 'your', 'their',
+  ]);
+  return new Set(
+    text
+      .toLowerCase()
+      .replace(/[^\w\s]/g, ' ')
+      .split(/\s+/)
+      .filter((w) => w.length > 3 && !stop.has(w)),
+  );
+}
+
+function wordOverlapRatio(a: string, b: string): number {
+  const wa = significantWords(a);
+  const wb = significantWords(b);
+  if (!wa.size || !wb.size) return 0;
+  let shared = 0;
+  for (const w of wa) if (wb.has(w)) shared++;
+  return shared / Math.min(wa.size, wb.size);
+}
+
+/** Pick drafts that share the fewest content words (avoids near-duplicate options). */
+function selectDiverseDrafts(candidates: string[], count: number): string[] {
+  const seen = new Set<string>();
+  const unique: string[] = [];
+  for (const row of candidates) {
+    const trimmed = row.trim();
+    const key = trimmed.toLowerCase();
+    if (!trimmed || seen.has(key)) continue;
+    seen.add(key);
+    unique.push(trimmed);
+  }
+  if (unique.length <= count) return unique.slice(0, count);
+
+  const pool = shuffle(unique);
+  const picked: string[] = [pool[0]!];
+  while (picked.length < count) {
+    let best: string | null = null;
+    let bestOverlap = Infinity;
+    for (const candidate of pool) {
+      if (picked.includes(candidate)) continue;
+      const overlap = Math.max(...picked.map((p) => wordOverlapRatio(p, candidate)));
+      if (overlap < bestOverlap) {
+        bestOverlap = overlap;
+        best = candidate;
+      }
+    }
+    if (!best) break;
+    picked.push(best);
+  }
+  return picked.slice(0, count);
+}
+
 @Injectable()
 export class ReviewDraftService {
   private readonly logger = new Logger(ReviewDraftService.name);
@@ -51,7 +119,9 @@ export class ReviewDraftService {
     if (apiKey && apiKey !== 'mock') {
       try {
         const fromGemini = await this.geminiDrafts(location, stars, normalizedKeywords, answers, apiKey);
-        if (fromGemini.length >= 1) return shuffle(fromGemini).slice(0, 4);
+        if (fromGemini.length >= 1) {
+          return selectDiverseDrafts(fromGemini, REVIEW_DRAFT_COUNT);
+        }
       } catch (err) {
         this.logger.warn(`Gemini drafts failed, using templates: ${String(err)}`);
       }
@@ -76,26 +146,24 @@ export class ReviewDraftService {
     keywords: string[],
     answers: ReviewDraftAnswer[],
   ): string[] {
-    const highlight = answers[0]?.answer ?? pickOne(keywords) ?? 'great service';
-    const extra = answers[1]?.answer;
-    const bit = highlight.trim();
-    const more = extra?.trim();
+    const phrases = splitAnswerPhrases(answers);
+    const fallback = pickOne(keywords) ?? 'great service';
+    const a = phrases[0] ?? fallback;
+    const b = phrases[1] ?? phrases[0] ?? fallback;
+    const c = phrases[2];
     const at = category === BusinessCategory.SERVICES ? 'working with' : 'at';
-    const openings = shuffle([
-      more
-        ? `${stars}-star experience ${at} ${name}. ${bit} — ${more}. Would recommend.`
-        : `${stars}-star experience ${at} ${name}. ${bit} really stood out. Would use them again.`,
-      `${name} delivered on ${bit.toLowerCase()}${more ? ` and ${more.toLowerCase()}` : ''}. Happy to recommend.`,
-      more
-        ? `If you need ${more.toLowerCase()}, ${name} is a solid choice. ${bit} — ${stars} stars from me.`
-        : `Genuinely impressed with ${name} — especially ${bit.toLowerCase()}. ${stars}-star experience.`,
-      pickOne([
-        `I'd choose ${name} again. ${bit}${more ? `; ${more}` : ''}.`,
-        `Clear ${stars}-star experience ${at} ${name}: ${bit}.`,
-        `Recommend ${name} — ${bit.toLowerCase()}${more ? ` and ${more.toLowerCase()}` : ''} made the difference.`,
-      ]) ?? `Solid ${stars}-star experience ${at} ${name}. ${bit}.`,
-    ]);
-    return openings;
+
+    const draftA =
+      c != null
+        ? `I left ${name} with a ${stars}-star impression — ${a.toLowerCase()} and ${b.toLowerCase()} were exactly what I needed.`
+        : `${stars} stars ${at} ${name}. ${a} stood out; I'd happily use them again.`;
+
+    const draftB =
+      c != null
+        ? `Solid experience ${at} ${name}: ${c} mattered most to me, and the team delivered without hassle.`
+        : `${name} earned my recommendation — ${b.toLowerCase()} made the visit worthwhile.`;
+
+    return selectDiverseDrafts([draftA, draftB], REVIEW_DRAFT_COUNT);
   }
 
   private async geminiDrafts(
@@ -106,11 +174,21 @@ export class ReviewDraftService {
     apiKey: string,
   ): Promise<string[]> {
     const model = this.config.get<string>('GEMINI_MODEL') ?? 'gemini-2.0-flash';
+    const draftRules = [
+      `Return ONLY a JSON array of exactly ${REVIEW_DRAFT_COUNT} strings, no markdown.`,
+      'Write 1–2 natural sentences per draft (real Google review tone).',
+      'The two drafts must feel like different people wrote them — different opening, angle, and length.',
+      'Do NOT repeat the same phrases, adjectives, or key nouns across both drafts (e.g. if draft A says "clear communication", draft B must use other words).',
+      'Do NOT dump every customer bullet into each draft — split their points: highlight at most two ideas per draft, spread ideas across the pair.',
+      'Prefer vivid, specific wording over stacking comma-separated keywords.',
+      'No hashtags, no fake staff names, no invented offers.',
+    ];
+
     const prompt = answers.length
       ? [
-          'Frame 4 short, authentic Google review drafts in the customer\'s voice (first person).',
+          `Frame ${REVIEW_DRAFT_COUNT} short, authentic Google review drafts in the customer's voice (first person).`,
           'Base the text ONLY on the customer answers below — do not invent staff names, offers, or facts they did not mention.',
-          'Return ONLY a JSON array of 4 strings, no markdown.',
+          ...draftRules,
           `Business: ${location.name}`,
           location.address ? `Address hint: ${location.address}` : null,
           businessTypeHint(location.businessCategory),
@@ -120,13 +198,10 @@ export class ReviewDraftService {
           keywords.length
             ? `Merchant themes (use ONLY if the customer’s answers clearly relate — never force unrelated words): ${keywords.join(', ')}`
             : null,
-          'Rules: casual tone, 1-3 sentences each, no hashtags. Mirror the customer’s facts; do not invent offers, names, or dishes.',
-          'Each draft must use a different opening and structure — no reused phrases between drafts.',
-          'Vary length slightly (one shorter, one medium, one longer) across the four.',
         ]
       : [
-          'Frame 4 short, authentic Google review drafts for a customer.',
-          'Return ONLY a JSON array of 4 strings, no markdown.',
+          `Frame ${REVIEW_DRAFT_COUNT} short, authentic Google review drafts for a customer.`,
+          ...draftRules,
           `Business: ${location.name}`,
           location.address ? `Address hint: ${location.address}` : null,
           businessTypeHint(location.businessCategory),
@@ -134,7 +209,6 @@ export class ReviewDraftService {
           keywords.length
             ? `Merchant themes (only if they fit): ${keywords.join(', ')}`
             : null,
-          'Rules: casual tone, 1-3 sentences each, no hashtags, no fake staff names.',
         ];
     const promptText = prompt.filter(Boolean).join('\n');
 
@@ -146,6 +220,9 @@ export class ReviewDraftService {
 
     const parsed = JSON.parse(extractJsonArray(text)) as unknown;
     if (!Array.isArray(parsed)) throw new Error('Gemini did not return an array');
-    return parsed.filter((row): row is string => typeof row === 'string' && row.trim().length > 3);
+    const strings = parsed.filter(
+      (row): row is string => typeof row === 'string' && row.trim().length > 3,
+    );
+    return selectDiverseDrafts(strings, REVIEW_DRAFT_COUNT);
   }
 }

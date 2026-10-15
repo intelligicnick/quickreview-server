@@ -117,7 +117,7 @@ describe('Polish — QR claim & AI drafts', () => {
         ],
       })
       .expect(200);
-    expect(drafts.body.data.suggestions.length).toBeGreaterThanOrEqual(3);
+    expect(drafts.body.data.suggestions.length).toBe(2);
   });
 
   it('loads QuickDesign hub for a location', async () => {
