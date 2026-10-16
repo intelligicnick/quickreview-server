@@ -22,6 +22,7 @@ import { LocationsModule } from './locations/locations.module';
 import { MailModule } from './mail/mail.module';
 import { MembersModule } from './members/members.module';
 import { UsersModule } from './users/users.module';
+import { CounterSaleModule } from './counter-sale/counter-sale.module';
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { UsersModule } from './users/users.module';
     DesignModule,
     ScanModule,
     RevisitModule,
+    CounterSaleModule,
   ],
   controllers: [HealthController],
   providers: [

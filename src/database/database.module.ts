@@ -17,6 +17,7 @@ import { ConnectLead } from '../connect/connect-lead.entity';
 import { ConnectLink } from '../connect/connect-link.entity';
 import { ConnectProfile } from '../connect/connect-profile.entity';
 import { UserGoogleConnection } from '../google/entities/user-google-connection.entity';
+import { LocationGoogleReviewSnapshot } from '../google/location-google-review-snapshot.entity';
 import { ReviewEvent } from '../review/review-event.entity';
 import { LocationReviewSettings } from '../review/location-review-settings.entity';
 import { DesignGeneration } from '../design/design-generation.entity';
@@ -29,6 +30,8 @@ import { RevisitCustomerReward } from '../revisit/revisit-customer-reward.entity
 import { RevisitCustomer } from '../revisit/revisit-customer.entity';
 import { RevisitReward } from '../revisit/revisit-reward.entity';
 import { RevisitVisit } from '../revisit/revisit-visit.entity';
+import { CounterSaleAgent } from '../counter-sale/counter-sale-agent.entity';
+import { CounterSaleProvision } from '../counter-sale/counter-sale-provision.entity';
 
 export const ENTITIES = [
   User,
@@ -45,6 +48,7 @@ export const ENTITIES = [
   MenuItem,
   MenuItemVariantPrice,
   UserGoogleConnection,
+  LocationGoogleReviewSnapshot,
   AdminEvent,
   ReviewEvent,
   LocationReviewSettings,
@@ -56,6 +60,8 @@ export const ENTITIES = [
   RevisitVisit,
   RevisitReward,
   RevisitCustomerReward,
+  CounterSaleAgent,
+  CounterSaleProvision,
   ...PLATFORM_ENTITIES,
 ];
 

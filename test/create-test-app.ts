@@ -6,6 +6,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { INestApplication } from '@nestjs/common';
 import cookieParser from 'cookie-parser';
 import { AdminModule } from '../src/admin/admin.module';
+import { CounterSaleModule } from '../src/counter-sale/counter-sale.module';
 import { ContactMessagesModule } from '../src/contact/contact-messages.module';
 import { PlatformModule } from '../src/platform/platform.module';
 import { ConnectModule } from '../src/connect/connect.module';
@@ -63,6 +64,7 @@ export async function createTestApp(): Promise<{
       PlatformModule,
       ContactMessagesModule,
       AdminModule,
+      CounterSaleModule,
       ReviewModule,
       ConnectModule,
       DesignModule,

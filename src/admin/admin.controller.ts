@@ -40,6 +40,11 @@ import {
   UpdateQrProductDto,
 } from './dto/admin.dto';
 import { SuperAdminGuard } from './guards/super-admin.guard';
+import { CounterSaleAgentsService } from '../counter-sale/counter-sale-agents.service';
+import {
+  CreateCounterSaleAgentDto,
+  UpdateCounterSaleAgentDto,
+} from '../counter-sale/dto/counter-sale.dto';
 
 @Controller('admin')
 @UseGuards(SuperAdminGuard)
@@ -47,6 +52,7 @@ export class AdminController {
   constructor(
     private readonly adminService: AdminService,
     private readonly platform: AdminPlatformService,
+    private readonly counterSaleAgents: CounterSaleAgentsService,
   ) {}
 
   @Get('overview')
@@ -296,5 +302,35 @@ export class AdminController {
     @Body() dto: TransferBusinessDto,
   ) {
     return this.adminService.transferBusiness(actor, businessId, dto.email);
+  }
+
+  @Get('counter-sale/agents')
+  listCounterSaleAgents() {
+    return this.counterSaleAgents.listAgents();
+  }
+
+  @Post('counter-sale/agents')
+  createCounterSaleAgent(@CurrentUser() actor: User, @Body() dto: CreateCounterSaleAgentDto) {
+    return this.counterSaleAgents.createAgent(actor, dto);
+  }
+
+  @Patch('counter-sale/agents/:agentId')
+  updateCounterSaleAgent(
+    @Param('agentId', new ParseUUIDPipe({ version: '4' })) agentId: string,
+    @Body() dto: UpdateCounterSaleAgentDto,
+  ) {
+    return this.counterSaleAgents.updateAgent(agentId, dto);
+  }
+
+  @Post('counter-sale/agents/:agentId/session')
+  mintCounterSaleAgentSession(
+    @Param('agentId', new ParseUUIDPipe({ version: '4' })) agentId: string,
+  ) {
+    return this.counterSaleAgents.mintAgentSession(agentId);
+  }
+
+  @Get('counter-sale/provisions')
+  listCounterSaleProvisions(@Query('q') q?: string) {
+    return this.counterSaleAgents.listProvisions(q);
   }
 }

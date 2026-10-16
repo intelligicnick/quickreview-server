@@ -8,8 +8,10 @@ import { UserGoogleConnection } from './entities/user-google-connection.entity';
 import { GoogleBusinessService } from './google-business.service';
 import { GoogleController } from './google.controller';
 import { GoogleImportService } from './google-import.service';
+import { GoogleLocationFromPlaceService } from './google-location-from-place.service';
 import { GoogleOAuthService } from './google-oauth.service';
-import { GooglePlacesService } from './google-places.service';
+import { GooglePlacesModule } from './google-places.module';
+import { GoogleReviewGrowthModule } from './google-review-growth.module';
 
 @Module({
   imports: [
@@ -17,14 +19,11 @@ import { GooglePlacesService } from './google-places.service';
     BusinessesModule,
     MembersModule,
     ReviewModule,
+    GooglePlacesModule,
+    GoogleReviewGrowthModule,
   ],
   controllers: [GoogleController],
-  providers: [
-    GoogleOAuthService,
-    GoogleBusinessService,
-    GooglePlacesService,
-    GoogleImportService,
-  ],
-  exports: [GooglePlacesService, GoogleImportService],
+  providers: [GoogleOAuthService, GoogleBusinessService, GoogleImportService, GoogleLocationFromPlaceService],
+  exports: [GooglePlacesModule, GoogleImportService, GoogleReviewGrowthModule, GoogleLocationFromPlaceService],
 })
 export class GoogleModule {}

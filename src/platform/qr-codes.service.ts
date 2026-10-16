@@ -185,7 +185,7 @@ export class QrCodesService {
     return this.qrCodes.save(qr);
   }
 
-  private assertAssignableStock(qr: QrCode, locationId: string): void {
+  assertAssignableStock(qr: QrCode, locationId: string): void {
     if (qr.locationId === locationId) return;
     if (!qr.isPrinted) {
       throw new BadRequestException({

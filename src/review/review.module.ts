@@ -10,9 +10,15 @@ import { ReviewController } from './review.controller';
 import { ReviewDraftService } from './review-draft.service';
 import { ReviewEvent } from './review-event.entity';
 import { ReviewService } from './review.service';
+import { GoogleReviewGrowthModule } from '../google/google-review-growth.module';
 
 @Module({
-  imports: [MembersModule, PlatformModule, TypeOrmModule.forFeature([Location, ReviewEvent, LocationReviewSettings])],
+  imports: [
+    MembersModule,
+    PlatformModule,
+    GoogleReviewGrowthModule,
+    TypeOrmModule.forFeature([Location, ReviewEvent, LocationReviewSettings]),
+  ],
   controllers: [PublicReviewController, ReviewController],
   providers: [ReviewService, ReviewBootstrap, ReviewDraftService],
   exports: [ReviewService],

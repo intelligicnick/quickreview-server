@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from '../auth/auth.module';
 import { Business } from '../businesses/business.entity';
@@ -15,6 +15,7 @@ import { AdminEvent } from './admin-event.entity';
 import { AdminPlatformService } from './admin-platform.service';
 import { AdminService } from './admin.service';
 import { SuperAdminGuard } from './guards/super-admin.guard';
+import { CounterSaleModule } from '../counter-sale/counter-sale.module';
 
 @Module({
   imports: [
@@ -22,9 +23,11 @@ import { SuperAdminGuard } from './guards/super-admin.guard';
     MembersModule,
     AuthModule,
     PlatformModule,
+    forwardRef(() => CounterSaleModule),
     TypeOrmModule.forFeature([User, Business, Location, BusinessMember, AdminEvent, ReviewEvent]),
   ],
   controllers: [AdminController],
   providers: [AdminService, AdminPlatformService, AdminBootstrap, SuperAdminGuard],
+  exports: [AdminPlatformService],
 })
 export class AdminModule {}
