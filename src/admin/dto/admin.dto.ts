@@ -96,6 +96,10 @@ export class AdminQrCodesQueryDto {
   @IsOptional()
   @IsIn(['true', 'false'])
   unassigned?: 'true' | 'false';
+
+  @IsOptional()
+  @IsIn(['true', 'false'])
+  printed?: 'true' | 'false';
 }
 
 export class UpdatePlanDto {

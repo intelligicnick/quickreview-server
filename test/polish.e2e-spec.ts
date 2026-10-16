@@ -71,6 +71,24 @@ describe('Polish — QR claim & AI drafts', () => {
     return reg.body.data.accessToken as string;
   }
 
+  async function qrRowByCode(adminToken: string, code: string) {
+    const list = await request(app.getHttpServer())
+      .get('/api/admin/qr-codes')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    const row = (list.body.data as { id: string; code: string }[]).find((item) => item.code === code);
+    if (!row) throw new Error(`QR code ${code} not found in admin list`);
+    return row;
+  }
+
+  async function markPrinted(adminToken: string, codeId: string) {
+    await request(app.getHttpServer())
+      .patch(`/api/admin/qr-codes/${codeId}/printed`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ isPrinted: true })
+      .expect(200);
+  }
+
   it('resolves and claims a standee QR to review page', async () => {
     const adminToken = await superAdminToken();
     const { token, locationId } = await ownerWithLocation();
@@ -81,6 +99,7 @@ describe('Polish — QR claim & AI drafts', () => {
       .send({ size: 1 })
       .expect(201);
     const code = batch.body.data.codes[0] as string;
+    await markPrinted(adminToken, (await qrRowByCode(adminToken, code)).id);
 
     await request(app.getHttpServer()).get(`/api/public/q/${code}`).expect(200);
 
@@ -90,6 +109,49 @@ describe('Polish — QR claim & AI drafts', () => {
       .send({ code, kind: 'review' })
       .expect(201);
     expect(claim.body.data.targetUrl).toContain('/r/');
+  });
+
+  it('enforces printed standee assignment rules for admin', async () => {
+    const adminToken = await superAdminToken();
+    const { locationId } = await ownerWithLocation();
+
+    const batch = await request(app.getHttpServer())
+      .post('/api/admin/qr-codes/batches')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ size: 2 })
+      .expect(201);
+    const [codeA, codeB] = batch.body.data.codes as string[];
+    const rowA = await qrRowByCode(adminToken, codeA);
+    const rowB = await qrRowByCode(adminToken, codeB);
+
+    const unprinted = await request(app.getHttpServer())
+      .post(`/api/admin/qr-codes/${rowA.id}/assign`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ locationId, kind: 'review' })
+      .expect(400);
+    expect(unprinted.body.error.message).toMatch(/printed/i);
+
+    await markPrinted(adminToken, rowA.id);
+    await markPrinted(adminToken, rowB.id);
+
+    await request(app.getHttpServer())
+      .post(`/api/admin/qr-codes/${rowA.id}/assign`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ locationId, kind: 'review' })
+      .expect(201);
+
+    const second = await request(app.getHttpServer())
+      .post(`/api/admin/qr-codes/${rowB.id}/assign`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ locationId, kind: 'menu' })
+      .expect(400);
+    expect(second.body.error.message).toMatch(/printed standee/i);
+
+    const locked = await request(app.getHttpServer())
+      .post(`/api/admin/qr-codes/${rowA.id}/unassign`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(400);
+    expect(locked.body.error.message).toMatch(/cannot be unassigned/i);
   });
 
   it('returns AI draft suggestions using saved keywords', async () => {

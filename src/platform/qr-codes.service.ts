@@ -66,6 +66,15 @@ export class QrCodesService {
   }
 
   async assignQrToLocation(qr: QrCode, location: Location, kind: QrAssignKind): Promise<QrCode> {
+    if (qr.locationId && qr.locationId !== location.id) {
+      throw new BadRequestException({
+        code: ERROR_CODES.VALIDATION_ERROR,
+        message: 'This QR code is already linked to another location',
+      });
+    }
+    this.assertAssignableStock(qr, location.id);
+    await this.assertLocationCanReceivePrintedStandee(location.id, qr.locationId === location.id ? qr.id : undefined);
+
     if (!location.reviewCode) {
       location.reviewCode = newReviewCode(8);
       await this.locations.save(location);
@@ -89,6 +98,15 @@ export class QrCodesService {
     return this.qrCodes.save(qr);
   }
 
+  assertNotLockedStandee(qr: QrCode): void {
+    if (qr.isPrinted && qr.locationId) {
+      throw new BadRequestException({
+        code: ERROR_CODES.VALIDATION_ERROR,
+        message: 'Printed standee codes cannot be unassigned',
+      });
+    }
+  }
+
   resetToClaimable(qr: QrCode): Promise<QrCode> {
     const app = this.config.get<string>('APP_URL') ?? 'http://localhost:5173';
     qr.locationId = null;
@@ -96,6 +114,42 @@ export class QrCodesService {
     qr.targetUrl = qrClaimUrl(app, qr.code);
     qr.assignedAt = null;
     return this.qrCodes.save(qr);
+  }
+
+  private assertAssignableStock(qr: QrCode, locationId: string): void {
+    if (qr.locationId === locationId) return;
+    if (!qr.isPrinted) {
+      throw new BadRequestException({
+        code: ERROR_CODES.VALIDATION_ERROR,
+        message: 'Only printed, unassigned QR codes can be assigned',
+      });
+    }
+    if (qr.locationId) {
+      throw new BadRequestException({
+        code: ERROR_CODES.VALIDATION_ERROR,
+        message: 'This QR code is already linked to another location',
+      });
+    }
+  }
+
+  private async assertLocationCanReceivePrintedStandee(
+    locationId: string,
+    excludingQrId?: string,
+  ): Promise<void> {
+    const qb = this.qrCodes
+      .createQueryBuilder('qr')
+      .where('qr.locationId = :locationId', { locationId })
+      .andWhere('qr.isPrinted = true');
+    if (excludingQrId) {
+      qb.andWhere('qr.id != :excludingQrId', { excludingQrId });
+    }
+    const count = await qb.getCount();
+    if (count > 0) {
+      throw new BadRequestException({
+        code: ERROR_CODES.VALIDATION_ERROR,
+        message: 'This location already has a printed standee assigned',
+      });
+    }
   }
 
   private notFound(message: string) {

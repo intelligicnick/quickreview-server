@@ -229,7 +229,11 @@ export class AdminController {
 
   @Get('qr-codes')
   listQrCodes(@Query() query: AdminQrCodesQueryDto) {
-    return this.platform.listQrCodes(query.batchId, query.unassigned === 'true');
+    return this.platform.listQrCodes(
+      query.batchId,
+      query.unassigned === 'true',
+      query.printed === 'true' ? true : query.printed === 'false' ? false : undefined,
+    );
   }
 
   @Post('qr-codes/batches')

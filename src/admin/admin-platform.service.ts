@@ -538,7 +538,13 @@ export class AdminPlatformService {
         take: 20,
       }),
     ]);
-    const locationIds = [...new Set(subscriptions.map((row) => row.locationId))];
+    const ownedLocations = await this.locations
+      .createQueryBuilder('location')
+      .innerJoin('location.business', 'business')
+      .where('business.ownerUserId = :userId', { userId })
+      .select(['location.id'])
+      .getMany();
+    const locationIds = [...new Set(ownedLocations.map((row) => row.id))];
     const qrRows = locationIds.length
       ? await this.qrCodes.find({ where: { locationId: In(locationIds) } })
       : [];
@@ -751,7 +757,7 @@ export class AdminPlatformService {
     return { id: order.id, status: order.status };
   }
 
-  async listQrCodes(batchId?: string, unassignedOnly?: boolean) {
+  async listQrCodes(batchId?: string, unassignedOnly?: boolean, printedOnly?: boolean) {
     const qb = this.qrCodes
       .createQueryBuilder('qr')
       .leftJoinAndSelect('qr.location', 'location')
@@ -759,6 +765,8 @@ export class AdminPlatformService {
       .take(500);
     if (batchId) qb.andWhere('qr.batchId = :batchId', { batchId });
     if (unassignedOnly) qb.andWhere('qr.locationId IS NULL');
+    if (printedOnly === true) qb.andWhere('qr.isPrinted = true');
+    if (printedOnly === false) qb.andWhere('qr.isPrinted = false');
     const rows = await qb.getMany();
     const app = this.appUrl();
     return rows.map((row) => ({
@@ -819,6 +827,7 @@ export class AdminPlatformService {
   async unassignQrCode(actor: User, codeId: string) {
     const qr = await this.qrCodes.findOne({ where: { id: codeId } });
     if (!qr) throw this.notFound('QR code not found');
+    this.qrCodesService.assertNotLockedStandee(qr);
     await this.qrCodesService.resetToClaimable(qr);
     await this.log(actor.id, 'QR_UNASSIGNED', qr.code);
     return { id: qr.id, code: qr.code };
