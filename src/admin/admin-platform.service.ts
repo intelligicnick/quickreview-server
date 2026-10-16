@@ -410,6 +410,7 @@ export class AdminPlatformService {
       'SUBSCRIPTION_COMP',
       `Granted ${plan.name} for ${days} days to ${location.name} — "${body.reason.trim()}"`,
     );
+    await this.qrCodesService.ensureMerchantDigitalQr(location.id, plan.product);
     return { id: sub.id, endDate: sub.endDate };
   }
 
@@ -757,13 +758,24 @@ export class AdminPlatformService {
     return { id: order.id, status: order.status };
   }
 
-  async listQrCodes(batchId?: string, unassignedOnly?: boolean, printedOnly?: boolean) {
+  async listQrCodes(
+    batchId?: string,
+    unassignedOnly?: boolean,
+    printedOnly?: boolean,
+    merchantDigitalOnly?: boolean,
+  ) {
     const qb = this.qrCodes
       .createQueryBuilder('qr')
       .leftJoinAndSelect('qr.location', 'location')
       .orderBy('qr.createdAt', 'DESC')
       .take(500);
-    if (batchId) qb.andWhere('qr.batchId = :batchId', { batchId });
+    if (merchantDigitalOnly) {
+      qb.andWhere('qr.batchId = :merchantBatch', {
+        merchantBatch: 'merchant-digital',
+      }).andWhere('qr.locationId IS NOT NULL');
+    } else if (batchId) {
+      qb.andWhere('qr.batchId = :batchId', { batchId });
+    }
     if (unassignedOnly) qb.andWhere('qr.locationId IS NULL');
     if (printedOnly === true) qb.andWhere('qr.isPrinted = true');
     if (printedOnly === false) qb.andWhere('qr.isPrinted = false');

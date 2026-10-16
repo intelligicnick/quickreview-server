@@ -100,6 +100,10 @@ export class AdminQrCodesQueryDto {
   @IsOptional()
   @IsIn(['true', 'false'])
   printed?: 'true' | 'false';
+
+  @IsOptional()
+  @IsIn(['true'])
+  merchantDigital?: 'true';
 }
 
 export class UpdatePlanDto {

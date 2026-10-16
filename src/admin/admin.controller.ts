@@ -233,6 +233,7 @@ export class AdminController {
       query.batchId,
       query.unassigned === 'true',
       query.printed === 'true' ? true : query.printed === 'false' ? false : undefined,
+      query.merchantDigital === 'true',
     );
   }
 

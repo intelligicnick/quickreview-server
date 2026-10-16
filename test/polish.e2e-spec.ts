@@ -154,6 +154,24 @@ describe('Polish — QR claim & AI drafts', () => {
     expect(locked.body.error.message).toMatch(/cannot be unassigned/i);
   });
 
+  it('issues a merchant digital QR when QuickReview trial activates', async () => {
+    const { token, locationId } = await ownerWithLocation();
+    await activateReviewTrial(token, locationId);
+
+    const list = await request(app.getHttpServer())
+      .get(`/api/locations/${locationId}/qr-codes`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    const digital = (list.body.data as { isMerchantDigital: boolean; code: string }[]).find(
+      (row) => row.isMerchantDigital,
+    );
+    expect(digital?.code).toMatch(/^[A-Z0-9]{8}$/);
+
+    const resolve = await request(app.getHttpServer()).get(`/api/public/q/${digital!.code}`).expect(200);
+    expect(resolve.body.data.assigned).toBe(true);
+    expect(resolve.body.data.targetUrl).toContain('/r/');
+  });
+
   it('returns AI draft suggestions using saved keywords', async () => {
     const { token, locationId } = await ownerWithLocation();
     await activateReviewTrial(token, locationId);

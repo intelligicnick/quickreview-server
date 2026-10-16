@@ -13,7 +13,10 @@ import { MANAGER_ROLES } from '../members/member-role.enum';
 import { MembersService } from '../members/members.service';
 import { User } from '../users/user.entity';
 import { QrCode } from './entities/qr-code.entity';
+import { BillingProduct } from './enums/billing-product.enum';
 import { commerceHubPublicUrl, qrClaimUrl, revisitPublicUrl, reviewPublicUrl } from './qr-target.util';
+
+export const MERCHANT_DIGITAL_BATCH_ID = 'merchant-digital';
 
 export type QrAssignKind = 'review' | 'menu' | 'revisit';
 
@@ -36,6 +39,62 @@ export class QrCodesService {
       targetUrl: qr.targetUrl?.trim() || null,
       assigned: Boolean(qr.locationId),
     };
+  }
+
+  async listForLocation(user: User, locationId: string) {
+    const location = await this.locations.findOne({ where: { id: locationId } });
+    if (!location) throw this.notFound('Location not found');
+    await this.members.assertMember(user, location.businessId, MANAGER_ROLES);
+
+    const rows = await this.qrCodes.find({
+      where: { locationId },
+      order: { createdAt: 'DESC' },
+    });
+    const app = this.config.get<string>('APP_URL') ?? 'http://localhost:5173';
+    return rows.map((row) => ({
+      id: row.id,
+      code: row.code,
+      batchId: row.batchId,
+      claimUrl: qrClaimUrl(app, row.code),
+      targetUrl: row.targetUrl,
+      isMenuQr: row.isMenuQr,
+      isPrinted: row.isPrinted,
+      isMerchantDigital: row.batchId === MERCHANT_DIGITAL_BATCH_ID,
+      assignedAt: row.assignedAt,
+    }));
+  }
+
+  /** One review `/q/` code per location when QuickReview is activated (self-serve trial, payment, or admin comp). */
+  async ensureMerchantDigitalQr(locationId: string, product: BillingProduct): Promise<void> {
+    if (product !== BillingProduct.QUICK_REVIEW) return;
+
+    const existing = await this.qrCodes.findOne({
+      where: { locationId, batchId: MERCHANT_DIGITAL_BATCH_ID },
+    });
+    if (existing) return;
+
+    const location = await this.locations.findOne({
+      where: { id: locationId },
+      relations: { business: true },
+    });
+    if (!location) return;
+
+    const app = this.config.get<string>('APP_URL') ?? 'http://localhost:5173';
+    let code = newReviewCode(8);
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const exists = await this.qrCodes.exist({ where: { code } });
+      if (!exists) break;
+      code = newReviewCode(8);
+    }
+    const qr = await this.qrCodes.save(
+      this.qrCodes.create({
+        code,
+        batchId: MERCHANT_DIGITAL_BATCH_ID,
+        targetUrl: qrClaimUrl(app, code),
+        isPrinted: false,
+      }),
+    );
+    await this.assignQrToLocation(qr, location, 'review', { digital: true });
   }
 
   async claimForLocation(user: User, locationId: string, rawCode: string, kind: QrAssignKind) {
@@ -65,15 +124,25 @@ export class QrCodesService {
     };
   }
 
-  async assignQrToLocation(qr: QrCode, location: Location, kind: QrAssignKind): Promise<QrCode> {
+  async assignQrToLocation(
+    qr: QrCode,
+    location: Location,
+    kind: QrAssignKind,
+    opts?: { digital?: boolean },
+  ): Promise<QrCode> {
     if (qr.locationId && qr.locationId !== location.id) {
       throw new BadRequestException({
         code: ERROR_CODES.VALIDATION_ERROR,
         message: 'This QR code is already linked to another location',
       });
     }
-    this.assertAssignableStock(qr, location.id);
-    await this.assertLocationCanReceivePrintedStandee(location.id, qr.locationId === location.id ? qr.id : undefined);
+    if (!opts?.digital) {
+      this.assertAssignableStock(qr, location.id);
+      await this.assertLocationCanReceivePrintedStandee(
+        location.id,
+        qr.locationId === location.id ? qr.id : undefined,
+      );
+    }
 
     if (!location.reviewCode) {
       location.reviewCode = newReviewCode(8);

@@ -22,6 +22,7 @@ import { PaymentProvider } from './enums/payment-provider.enum';
 import { PaymentStatus } from './enums/payment-status.enum';
 import { SubscriptionSource } from './enums/subscription-source.enum';
 import { SubscriptionStatus } from './enums/subscription-status.enum';
+import { QrCodesService } from './qr-codes.service';
 
 export type ProductAccessStatus = 'NONE' | 'PENDING_PAYMENT' | 'ACTIVE' | 'EXPIRED' | 'CANCELLED';
 
@@ -58,7 +59,12 @@ export class SubscriptionsService {
     @InjectRepository(MarketplaceOrder) private readonly orders: Repository<MarketplaceOrder>,
     private readonly members: MembersService,
     private readonly razorpay: RazorpayService,
+    private readonly qrCodes: QrCodesService,
   ) {}
+
+  private async onPlanActivated(locationId: string, product: BillingProduct): Promise<void> {
+    await this.qrCodes.ensureMerchantDigitalQr(locationId, product);
+  }
 
   async findPendingPaymentByRazorpayOrder(orderId: string): Promise<Payment | null> {
     const ref = this.razorpay.orderReference(orderId);
@@ -89,6 +95,7 @@ export class SubscriptionsService {
     if (payment.subscriptionId && payment.subscription) {
       payment.subscription.status = SubscriptionStatus.ACTIVE;
       await this.subscriptions.save(payment.subscription);
+      await this.onPlanActivated(payment.subscription.locationId, payment.subscription.product);
     }
     if (payment.orderId) {
       const order = await this.orders.findOne({ where: { id: payment.orderId } });
@@ -302,6 +309,7 @@ export class SubscriptionsService {
           amountInr: 0,
         }),
       );
+      await this.onPlanActivated(location.id, plan.product);
       return {
         subscriptionId: sub.id,
         paymentId: null,
