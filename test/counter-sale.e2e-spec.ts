@@ -62,7 +62,7 @@ describe('Counter sale', () => {
     const created = await request(app.getHttpServer())
       .post('/api/admin/counter-sale/agents')
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ username: 'field1', pin: '12345' })
+      .send({ username: 'field1', pin: '123' })
       .expect(201);
     const agentId = created.body.data.id as string;
 
@@ -80,7 +80,7 @@ describe('Counter sale', () => {
 
     const login = await request(app.getHttpServer())
       .post('/api/counter-sale/auth/login')
-      .send({ username: 'field1', pin: '12345' })
+      .send({ username: 'field1', pin: '123' })
       .expect(200);
     const agentToken = login.body.data.accessToken as string;
 

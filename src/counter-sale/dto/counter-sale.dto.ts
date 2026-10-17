@@ -9,7 +9,7 @@ export class CounterSaleLoginDto {
   username!: string;
 
   @IsString()
-  @Matches(/^\d{5}$/)
+  @Matches(/^\d{3}$/)
   pin!: string;
 }
 
@@ -21,13 +21,19 @@ export class CreateCounterSaleAgentDto {
   username!: string;
 
   @IsString()
-  @Matches(/^\d{5}$/)
+  @Matches(/^\d{3}$/)
   pin!: string;
 }
 
 export class UpdateCounterSaleAgentDto {
   @IsBoolean()
   isActive!: boolean;
+}
+
+export class UpdateCounterSaleAgentPinDto {
+  @IsString()
+  @Matches(/^\d{3}$/)
+  pin!: string;
 }
 
 export class CounterSaleProvisionDto {

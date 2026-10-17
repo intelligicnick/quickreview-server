@@ -44,6 +44,7 @@ import { CounterSaleAgentsService } from '../counter-sale/counter-sale-agents.se
 import {
   CreateCounterSaleAgentDto,
   UpdateCounterSaleAgentDto,
+  UpdateCounterSaleAgentPinDto,
 } from '../counter-sale/dto/counter-sale.dto';
 
 @Controller('admin')
@@ -320,6 +321,14 @@ export class AdminController {
     @Body() dto: UpdateCounterSaleAgentDto,
   ) {
     return this.counterSaleAgents.updateAgent(agentId, dto);
+  }
+
+  @Patch('counter-sale/agents/:agentId/pin')
+  updateCounterSaleAgentPin(
+    @Param('agentId', new ParseUUIDPipe({ version: '4' })) agentId: string,
+    @Body() dto: UpdateCounterSaleAgentPinDto,
+  ) {
+    return this.counterSaleAgents.updateAgentPin(agentId, dto.pin);
   }
 
   @Post('counter-sale/agents/:agentId/session')

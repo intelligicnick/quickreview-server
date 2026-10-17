@@ -69,6 +69,19 @@ export class CounterSaleAgentsService {
     return { id: agent.id, username: agent.username, isActive: agent.isActive };
   }
 
+  async updateAgentPin(agentId: string, pin: string) {
+    const agent = await this.agents.findOne({ where: { id: agentId } });
+    if (!agent) {
+      throw new NotFoundException({
+        code: ERROR_CODES.NOT_FOUND,
+        message: 'Agent not found',
+      });
+    }
+    agent.pinHash = await this.auth.hashPin(pin);
+    await this.agents.save(agent);
+    return { id: agent.id, username: agent.username, isActive: agent.isActive };
+  }
+
   async listProvisions(q?: string) {
     const holdingUser = await this.holding.getHoldingUser();
     const qb = this.provisions
