@@ -80,6 +80,7 @@ export class CounterSaleAgentsService {
     const businessIds = [...new Set(rows.map((r) => r.businessId))];
     const locationIds = [...new Set(rows.map((r) => r.locationId))];
 
+    const agentIds = [...new Set(rows.map((r) => r.provisionedByAgentId).filter(Boolean))] as string[];
     const businesses =
       businessIds.length > 0
         ? await this.businesses.find({ where: { id: In(businessIds) } })
@@ -88,9 +89,12 @@ export class CounterSaleAgentsService {
       locationIds.length > 0
         ? await this.locations.find({ where: { id: In(locationIds) } })
         : [];
+    const agentRows =
+      agentIds.length > 0 ? await this.agents.find({ where: { id: In(agentIds) } }) : [];
 
     const businessMap = new Map(businesses.map((b) => [b.id, b]));
     const locationMap = new Map(locations.map((l) => [l.id, l]));
+    const agentMap = new Map(agentRows.map((a) => [a.id, a.username]));
 
     const term = (q ?? '').trim().toLowerCase();
     return rows
@@ -102,6 +106,11 @@ export class CounterSaleAgentsService {
           qrCode: row.qrCode,
           service: row.service,
           createdAt: row.createdAt,
+          agentUsername: row.provisionedByAgentId
+            ? agentMap.get(row.provisionedByAgentId) ?? null
+            : row.provisionedByUserId
+              ? 'Admin'
+              : null,
           business: business
             ? {
                 id: business.id,
