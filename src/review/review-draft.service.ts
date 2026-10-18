@@ -39,6 +39,37 @@ function shuffle<T>(items: T[]): T[] {
 }
 
 const REVIEW_DRAFT_COUNT = 2;
+const GEMINI_CANDIDATE_COUNT = 4;
+
+const GENERIC_REVIEW_PHRASES = [
+  'great service',
+  'amazing experience',
+  'highly recommend',
+  'would recommend',
+  'hidden gem',
+  'top notch',
+  'top-notch',
+  'exceeded expectations',
+  'five star',
+  '5 star',
+  '5-star',
+  'friendly staff',
+  'friendly team',
+  'good experience',
+  'made the visit worthwhile',
+  'stood out',
+  'without hassle',
+  'earned my trust',
+  'glad i stopped by',
+  'easy to recommend',
+  'would happily return',
+  'would come back',
+  'worth checking out',
+  'pleasant experience',
+  'wonderful experience',
+  'excellent service',
+  'outstanding service',
+];
 
 function splitAnswerPhrases(answers: ReviewDraftAnswer[]): string[] {
   const phrases: string[] = [];
@@ -49,6 +80,83 @@ function splitAnswerPhrases(answers: ReviewDraftAnswer[]): string[] {
     }
   }
   return phrases;
+}
+
+/** Concrete nouns/phrases from guest answers — drafts should echo these, not boilerplate. */
+function customerLexicon(answers: ReviewDraftAnswer[], keywords: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  const push = (raw: string) => {
+    const trimmed = raw.replace(/\s+/g, ' ').trim();
+    if (trimmed.length < 3) return;
+    const key = trimmed.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(trimmed);
+  };
+  for (const row of answers) {
+    push(row.answer);
+    for (const part of row.answer.split(/[,;]+/)) push(part);
+    for (const word of row.answer.split(/\s+/)) {
+      if (word.length >= 5) push(word);
+    }
+  }
+  for (const kw of keywords) push(kw);
+  return out.slice(0, 24);
+}
+
+function answerCorpus(answers: ReviewDraftAnswer[]): string {
+  return answers.map((row) => row.answer).join(' ').toLowerCase();
+}
+
+function phraseAllowedInDraft(phrase: string, corpus: string): boolean {
+  return corpus.includes(phrase.toLowerCase());
+}
+
+function draftSpecificityScore(
+  draft: string,
+  lexicon: string[],
+  answerText: string,
+  businessName: string,
+): number {
+  const lower = draft.toLowerCase();
+  let score = 0;
+  for (const term of lexicon) {
+    const t = term.toLowerCase();
+    if (t.length >= 4 && lower.includes(t)) score += 3;
+  }
+  for (const banned of GENERIC_REVIEW_PHRASES) {
+    if (lower.includes(banned) && !phraseAllowedInDraft(banned, answerText)) score -= 4;
+  }
+  if (lower.includes(businessName.toLowerCase())) score += 1;
+  const words = lower.split(/\s+/).filter(Boolean);
+  if (words.length >= 18 && words.length <= 55) score += 2;
+  if (words.length < 10) score -= 2;
+  if (/\b(i|i'm|i've|we|we're)\b/.test(lower)) score += 1;
+  return score;
+}
+
+function pickBestReviewDrafts(
+  candidates: string[],
+  count: number,
+  lexicon: string[],
+  answerText: string,
+  businessName: string,
+  excludeDrafts: string[],
+): string[] {
+  const fresh = filterExcluded(candidates, excludeDrafts);
+  const pool = fresh.length >= 1 ? fresh : candidates;
+  const ranked = [...pool].sort(
+    (a, b) =>
+      draftSpecificityScore(b, lexicon, answerText, businessName) -
+      draftSpecificityScore(a, lexicon, answerText, businessName),
+  );
+  const diverse = selectDiverseDrafts(ranked, Math.min(count, ranked.length));
+  const minScore = lexicon.length >= 2 ? 2 : 0;
+  const ok = diverse.filter(
+    (row) => draftSpecificityScore(row, lexicon, answerText, businessName) >= minScore,
+  );
+  return ok.length >= 1 ? selectDiverseDrafts(ok, count) : diverse.slice(0, count);
 }
 
 function significantWords(text: string): Set<string> {
@@ -178,9 +286,26 @@ export class ReviewDraftService {
             excludeDrafts,
             attempt > 0,
           );
+          const lexicon = customerLexicon(answers, normalizedKeywords);
+          const corpus = answerCorpus(answers);
           const fresh = filterExcluded(fromGemini, excludeDrafts);
           if (fresh.length >= 1) {
-            return selectDiverseDrafts(fresh, REVIEW_DRAFT_COUNT);
+            const picked = pickBestReviewDrafts(
+              fresh,
+              REVIEW_DRAFT_COUNT,
+              lexicon,
+              corpus,
+              location.name,
+              excludeDrafts,
+            );
+            if (
+              picked.length >= 1 &&
+              (!lexicon.length ||
+                picked.some((row) => draftSpecificityScore(row, lexicon, corpus, location.name) >= 2))
+            ) {
+              return picked;
+            }
+            if (attempt === 0) continue;
           }
         } catch (err) {
           this.logger.warn(`Gemini drafts attempt ${attempt + 1} failed: ${String(err)}`);
@@ -204,39 +329,34 @@ export class ReviewDraftService {
 
   private templateDrafts(
     name: string,
-    category: BusinessCategory | null | undefined,
+    _category: BusinessCategory | null | undefined,
     stars: number,
     keywords: string[],
     answers: ReviewDraftAnswer[],
     excludeDrafts: string[],
   ): string[] {
+    const lexicon = customerLexicon(answers, keywords);
+    const corpus = answerCorpus(answers);
     const phrases = splitAnswerPhrases(answers);
-    const theme = pickOne(keywords) ?? pickOne(phrases) ?? 'great service';
-    const parts = phrases.length ? phrases : [theme];
-    const at = category === BusinessCategory.SERVICES ? 'working with' : 'at';
-    const leads = shuffle([
-      `I rated ${name} ${stars}/5 because`,
-      `My visit ${at} ${name} stood out —`,
-      `${stars} stars ${at} ${name}:`,
-      `Genuinely happy ${at} ${name}:`,
+    const a = phrases[0] ?? lexicon[0] ?? 'what I needed';
+    const b = phrases[1] ?? phrases[0] ?? lexicon[1] ?? a;
+    const c = phrases[2];
+    const candidates = shuffle([
+      c
+        ? `I went to ${name} for ${a.toLowerCase()} — ${c} was the part I'll remember, and the rest matched the ${stars}-star vibe I was hoping for.`
+        : `Stopped by ${name} after hearing about ${a.toLowerCase()}; ${b.toLowerCase()} was exactly on point.`,
+      `Between ${a.toLowerCase()} and ${b.toLowerCase()}, ${name} delivered — I'm leaving this review so the next person knows what to expect.`,
+      `If you care about ${b.toLowerCase()}, ${name} is worth a visit. ${a} sealed it for me.`,
     ]);
-    const mids = shuffle(parts);
-    const tails = shuffle([
-      'Would happily return.',
-      'Glad I stopped by.',
-      'Easy to recommend.',
-      'They earned my trust.',
-    ]);
-    const candidates: string[] = [];
-    for (let i = 0; i < Math.min(4, leads.length); i++) {
-      const lead = leads[i]!;
-      const mid = mids[i % mids.length]!;
-      const tail = tails[i % tails.length]!;
-      candidates.push(`${lead} ${mid.charAt(0).toLowerCase()}${mid.slice(1)}. ${tail}`);
-    }
-    const fresh = filterExcluded(candidates, excludeDrafts);
-    const pool = fresh.length >= 1 ? fresh : candidates;
-    return selectDiverseDrafts(pool, REVIEW_DRAFT_COUNT);
+    const picked = pickBestReviewDrafts(
+      candidates,
+      REVIEW_DRAFT_COUNT,
+      lexicon,
+      corpus,
+      name,
+      excludeDrafts,
+    );
+    return picked.length >= 1 ? picked : selectDiverseDrafts(candidates, REVIEW_DRAFT_COUNT);
   }
 
   private async geminiDrafts(
@@ -248,28 +368,37 @@ export class ReviewDraftService {
     excludeDrafts: string[],
     strictRetry: boolean,
   ): Promise<string[]> {
-    const model = this.config.get<string>('GEMINI_MODEL') ?? 'gemini-2.0-flash';
+    const model =
+      this.config.get<string>('GEMINI_REVIEW_MODEL') ??
+      this.config.get<string>('GEMINI_MODEL') ??
+      'gemini-2.0-flash';
+    const lexicon = customerLexicon(answers, keywords);
     const angle = pickOne([
-      'warm thank-you',
-      'specific detail highlight',
-      'recommendation to a friend',
-      'brief and punchy',
-      'first-time visitor impressed',
+      'tell a mini story about one moment',
+      'explain who this place is perfect for',
+      'compare expectation vs what actually happened',
+      'focus on one sensory or concrete detail',
+      'sound like a busy local leaving a quick honest note',
     ]);
     const draftRules = [
-      `Return ONLY a JSON array of exactly ${REVIEW_DRAFT_COUNT} strings, no markdown.`,
-      'Write 1–2 natural sentences per draft (real Google review tone).',
-      'The two drafts must feel like different people wrote them — different opening, angle, and length.',
-      'Do NOT repeat the same phrases, adjectives, or key nouns across both drafts.',
-      'Do NOT dump every customer bullet into each draft — highlight at most two ideas per draft.',
-      'Prefer vivid, specific wording over stacking comma-separated keywords.',
-      'No hashtags, no fake staff names, no invented offers.',
-      `Creative angle for this pair: ${angle}.`,
-      `Freshness token (vary wording): ${Date.now()}-${Math.floor(Math.random() * 10_000)}.`,
+      `Return ONLY a JSON array of exactly ${GEMINI_CANDIDATE_COUNT} strings, no markdown.`,
+      'You write top Google reviews: specific, human, believable — never brochure or SEO copy.',
+      'BAD (reject this style): "Great service and friendly staff. Highly recommend!"',
+      'GOOD: "The paneer tikka was charred just right and they had our table ready before the kids got restless."',
+      'Each draft MUST weave in at least TWO distinct details from the customer lexicon below (use their words or tight paraphrase).',
+      'Each draft MUST mention the business name once.',
+      `Match a ${stars}-star tone: enthusiastic but believable${stars === 4 ? ' (strong but not over-the-top)' : ''}.`,
+      'Vary length: two drafts ~2–3 sentences; two drafts ~1–2 sentences.',
+      'All four options must feel like different people — different openings and angles.',
+      'Do NOT open with "I had a great experience" or "I recently visited".',
+      `Do NOT use generic filler unless the customer literally said it: ${GENERIC_REVIEW_PHRASES.slice(0, 12).join(', ')}.`,
+      'No hashtags, emojis, fake names, or invented discounts.',
+      `Angle to explore across the set: ${angle}.`,
+      `Freshness token: ${Date.now()}-${Math.floor(Math.random() * 10_000)}.`,
     ];
     if (strictRetry) {
       draftRules.push(
-        'Previous output was too similar to earlier drafts — rewrite completely with new openings and vocabulary.',
+        'Last batch was too generic. Use sharper, more concrete wording and more of the customer lexicon.',
       );
     }
     if (excludeDrafts.length) {
@@ -281,41 +410,42 @@ export class ReviewDraftService {
 
     const prompt = answers.length
       ? [
-          `Frame ${REVIEW_DRAFT_COUNT} short, authentic Google review drafts in the customer's voice (first person).`,
-          'Base the text ONLY on the customer answers below — do not invent staff names, offers, or facts they did not mention.',
+          `Write ${GEMINI_CANDIDATE_COUNT} publish-ready Google review options in first person.`,
+          'Facts must come ONLY from customer answers — never invent staff, dishes, prices, or offers.',
           ...draftRules,
           `Business: ${location.name}`,
-          location.address ? `Address hint: ${location.address}` : null,
+          location.address ? `Location context: ${location.address}` : null,
           businessTypeHint(location.businessCategory),
-          `Star rating they chose: ${stars} out of 5`,
-          'Customer answers:',
+          `Star rating selected: ${stars}/5`,
+          lexicon.length ? `Customer lexicon (MUST appear across each draft): ${lexicon.join(' · ')}` : null,
+          'Customer Q&A:',
           this.formatAnswers(answers),
           keywords.length
-            ? `Merchant themes (use ONLY if the customer’s answers clearly relate): ${keywords.join(', ')}`
+            ? `Merchant themes — only if the guest already hinted at them: ${keywords.join(', ')}`
             : null,
         ]
       : [
-          `Frame ${REVIEW_DRAFT_COUNT} short, authentic Google review drafts for a customer.`,
+          `Write ${GEMINI_CANDIDATE_COUNT} publish-ready Google review options in first person.`,
           ...draftRules,
           `Business: ${location.name}`,
-          location.address ? `Address hint: ${location.address}` : null,
+          location.address ? `Location context: ${location.address}` : null,
           businessTypeHint(location.businessCategory),
-          `Star rating: ${stars} out of 5`,
-          keywords.length ? `Merchant themes (only if they fit): ${keywords.join(', ')}` : null,
+          `Star rating: ${stars}/5`,
+          keywords.length ? `Optional themes if natural: ${keywords.join(', ')}` : null,
         ];
     const promptText = prompt.filter(Boolean).join('\n');
 
     const text = await geminiGenerateText(apiKey, model, promptText, {
-      temperature: strictRetry ? 1 : 0.95,
-      maxOutputTokens: 1536,
+      temperature: strictRetry ? 0.92 : 0.88,
+      maxOutputTokens: 2048,
       json: true,
     });
 
     const parsed = JSON.parse(extractJsonArray(text)) as unknown;
     if (!Array.isArray(parsed)) throw new Error('Gemini did not return an array');
     const strings = parsed.filter(
-      (row): row is string => typeof row === 'string' && row.trim().length > 3,
+      (row): row is string => typeof row === 'string' && row.trim().length > 8,
     );
-    return selectDiverseDrafts(strings, REVIEW_DRAFT_COUNT);
+    return strings;
   }
 }
