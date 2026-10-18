@@ -45,11 +45,16 @@ import { MenuItemVariantPrice } from './menu-item-variant-price.entity';
 import { MenuItem } from './menu-item.entity';
 import { itemPricingFields, minVariantPrice } from './menu-pricing.util';
 import {
+  CATALOG_BANNER_MARKER,
+  deleteCatalogBanner,
   deleteMenuPhoto,
   MENU_PHOTO_SLOTS,
   normalizeStoredImageUrls,
+  readCatalogBanner,
   readMenuPhoto,
+  resolveCatalogBannerUrl,
   resolveMenuImageUrls,
+  saveCatalogBanner,
   saveMenuPhoto,
 } from './menu-photo.storage';
 import { LocationRevisitSettings } from '../revisit/location-revisit-settings.entity';
@@ -97,6 +102,8 @@ export class MenuService {
     return {
       locationId,
       locationName: location.name,
+      address: location.address,
+      phone: location.phone,
       slug,
       menuMode: location.menuMode,
       businessCategory: location.businessCategory,
@@ -114,6 +121,11 @@ export class MenuService {
       menuUnlocked: menuAccess.unlocked,
       menuAccess,
       imagePlaceholder: menuImagePlaceholder(location.businessCategory, location.menuMode),
+      catalogBannerUrl: resolveCatalogBannerUrl(
+        appUrl,
+        location.id,
+        location.catalogBannerUrl,
+      ),
       categories,
     };
   }
@@ -167,6 +179,48 @@ export class MenuService {
     if (!item.imageUrls.length) item.imageUrl = null;
     await this.items.save(item);
     return this.serializeItemResponse(item, locationId);
+  }
+
+  async uploadCatalogBanner(
+    user: User,
+    locationId: string,
+    file: UploadedImageFile,
+  ) {
+    await this.assertManager(user, locationId);
+    const location = await this.getLocationForMember(user, locationId);
+    try {
+      await saveCatalogBanner(location.id, file.buffer, file.mimetype);
+    } catch (err) {
+      throw new BadRequestException({
+        code: ERROR_CODES.VALIDATION_ERROR,
+        message: err instanceof Error ? err.message : 'Could not save banner',
+      });
+    }
+    location.catalogBannerUrl = CATALOG_BANNER_MARKER;
+    await this.locations.save(location);
+    const appUrl = this.config.get<string>('APP_URL') ?? 'http://localhost:5173';
+    return {
+      catalogBannerUrl: resolveCatalogBannerUrl(appUrl, location.id, location.catalogBannerUrl),
+    };
+  }
+
+  async deleteCatalogBanner(user: User, locationId: string) {
+    await this.assertManager(user, locationId);
+    const location = await this.getLocationForMember(user, locationId);
+    await deleteCatalogBanner(location.id);
+    location.catalogBannerUrl = null;
+    await this.locations.save(location);
+    return { catalogBannerUrl: null };
+  }
+
+  async getCatalogBanner(locationId: string): Promise<{ data: Buffer; mimeType: string } | null> {
+    const location = await this.locations.findOne({ where: { id: locationId } });
+    if (!location?.catalogBannerUrl || location.catalogBannerUrl !== CATALOG_BANNER_MARKER) {
+      return null;
+    }
+    const data = await readCatalogBanner(locationId);
+    if (!data) return null;
+    return { data, mimeType: 'image/webp' };
   }
 
   async getItemPhoto(itemId: string, slot: number): Promise<{ data: Buffer; mimeType: string } | null> {
@@ -284,6 +338,7 @@ export class MenuService {
         priceInr: dto.priceInr ?? null,
         isNonVeg: dto.isNonVeg ?? false,
         isAvailable: dto.isAvailable ?? true,
+        isFeatured: dto.isFeatured ?? false,
         imageUrl: dto.imageUrl?.trim() || null,
         imageUrls: dto.imageUrls?.slice(0, MENU_PHOTO_SLOTS) ?? [],
         sortOrder: dto.sortOrder ?? (maxRow?.sortOrder ?? 0) + 1,
@@ -315,6 +370,7 @@ export class MenuService {
     if (dto.priceInr !== undefined) item.priceInr = dto.priceInr;
     if (dto.isNonVeg !== undefined) item.isNonVeg = dto.isNonVeg;
     if (dto.isAvailable !== undefined) item.isAvailable = dto.isAvailable;
+    if (dto.isFeatured !== undefined) item.isFeatured = dto.isFeatured;
     if (dto.imageUrl !== undefined) item.imageUrl = dto.imageUrl.trim() || null;
     if (dto.imageUrls !== undefined) {
       item.imageUrls = dto.imageUrls.slice(0, MENU_PHOTO_SLOTS);
@@ -390,8 +446,10 @@ export class MenuService {
     const categories = await this.loadCategories(location.id, { hideUnavailable: true });
     const copy = catalogCopyForLocation(location.businessCategory, location.menuMode);
     const quickRevisitPath = await this.publicQuickRevisitPath(location);
+    const appUrl = this.config.get<string>('APP_URL') ?? 'http://localhost:5173';
     return {
       slug: location.slug!,
+      locationId: location.id,
       locationName: location.name,
       quickRevisitPath,
       address: location.address,
@@ -401,6 +459,7 @@ export class MenuService {
       catalogType: location.catalogType,
       presentation: copy.presentation,
       imagePlaceholder: menuImagePlaceholder(location.businessCategory, location.menuMode),
+      catalogBannerUrl: resolveCatalogBannerUrl(appUrl, location.id, location.catalogBannerUrl),
       priceVariantScope: usesCategoryPriceVariants(location.businessCategory, location.menuMode)
         ? 'category'
         : 'product',
@@ -408,6 +467,8 @@ export class MenuService {
         pageTitle: copy.pageTitle,
         showVegBadge: copy.showVegBadge,
         guestBrowse: catalogGuestBrowse(copy.presentation),
+        featuredTabLabel:
+          copy.tabs.find((tab) => tab.id === 'featured')?.label ?? "Today's Special",
       },
       categories,
     };
@@ -528,6 +589,7 @@ export class MenuService {
       priceInr: item.priceInr,
       isNonVeg: item.isNonVeg,
       isAvailable: item.isAvailable,
+      isFeatured: item.isFeatured,
       imageUrl: images[0] ?? null,
       imageUrls: images,
       sortOrder: item.sortOrder,
@@ -555,6 +617,7 @@ export class MenuService {
       priceInr: item.priceInr,
       isNonVeg: item.isNonVeg,
       isAvailable: item.isAvailable,
+      isFeatured: item.isFeatured,
       imageUrl: images[0] ?? null,
       imageUrls: images,
       sortOrder: item.sortOrder,

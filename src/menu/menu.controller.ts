@@ -47,6 +47,27 @@ export class MenuController {
     return this.menu.completeSetup(user, locationId, dto);
   }
 
+  @Post(':locationId/quickmenu/banner')
+  @UseInterceptors(FileInterceptor('image', { limits: { fileSize: 4 * 1024 * 1024 } }))
+  uploadCatalogBanner(
+    @CurrentUser() user: User,
+    @Param('locationId', new ParseUUIDPipe({ version: '4' })) locationId: string,
+    @UploadedFile() file?: UploadedImageFile,
+  ) {
+    if (!file?.buffer) {
+      throw new BadRequestException('image file is required');
+    }
+    return this.menu.uploadCatalogBanner(user, locationId, file);
+  }
+
+  @Delete(':locationId/quickmenu/banner')
+  deleteCatalogBanner(
+    @CurrentUser() user: User,
+    @Param('locationId', new ParseUUIDPipe({ version: '4' })) locationId: string,
+  ) {
+    return this.menu.deleteCatalogBanner(user, locationId);
+  }
+
   @Patch(':locationId/quickmenu')
   updateSettings(
     @CurrentUser() user: User,

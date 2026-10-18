@@ -8,6 +8,21 @@ import { MenuService } from './menu.service';
 export class PublicMenuController {
   constructor(private readonly menu: MenuService) {}
 
+  @Get('locations/:locationId/banner')
+  @Header('Cache-Control', 'public, max-age=86400')
+  async catalogBanner(
+    @Param('locationId', new ParseUUIDPipe({ version: '4' })) locationId: string,
+    @Res() res: Response,
+  ) {
+    const photo = await this.menu.getCatalogBanner(locationId);
+    if (!photo) {
+      res.status(404).end();
+      return;
+    }
+    res.setHeader('Content-Type', photo.mimeType);
+    res.send(photo.data);
+  }
+
   @Get('items/:itemId/photos/:slot')
   @Header('Cache-Control', 'public, max-age=86400')
   async itemPhoto(

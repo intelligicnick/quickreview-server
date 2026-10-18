@@ -52,6 +52,9 @@ export class MenuItem {
   @Column({ type: 'boolean', default: true })
   isAvailable: boolean;
 
+  @Column({ type: 'boolean', default: false })
+  isFeatured: boolean;
+
   @Column({ type: 'text', nullable: true })
   imageUrl: string | null;
 

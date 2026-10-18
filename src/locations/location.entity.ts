@@ -75,6 +75,10 @@ export class Location {
   @Column({ type: 'datetime', nullable: true })
   quickCommerceSetupAt: Date | null;
 
+  /** `local:banner` for uploaded storefront image, or https URL. */
+  @Column({ type: 'varchar', length: 1000, nullable: true })
+  catalogBannerUrl: string | null;
+
   @Column({ type: 'int', default: 0 })
   scanCount: number;
 

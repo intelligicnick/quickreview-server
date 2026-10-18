@@ -6,6 +6,9 @@ const MAX_EDGE = 960;
 const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
 export const MENU_PHOTO_SLOTS = 2;
+export const CATALOG_BANNER_MARKER = 'local:banner';
+const BANNER_MAX_WIDTH = 1280;
+const BANNER_MAX_HEIGHT = 480;
 
 export function menuPhotoRoot(): string {
   return process.env.MENU_UPLOAD_DIR ?? join(process.cwd(), 'data', 'menu-photos');
@@ -17,6 +20,14 @@ export function menuPhotoPath(itemId: string, slot: number): string {
 
 export function isLocalPhotoRef(value: string): boolean {
   return value === 'local:0' || value === 'local:1';
+}
+
+export function isCatalogBannerRef(value: string): boolean {
+  return value === CATALOG_BANNER_MARKER;
+}
+
+export function catalogBannerPath(locationId: string): string {
+  return join(menuPhotoRoot(), locationId, 'banner.webp');
 }
 
 export function localPhotoSlot(value: string): number {
@@ -46,6 +57,55 @@ export async function readMenuPhoto(itemId: string, slot: number): Promise<Buffe
   } catch {
     return null;
   }
+}
+
+export async function saveCatalogBanner(locationId: string, buffer: Buffer, mimeType: string): Promise<void> {
+  if (!ALLOWED_MIME.has(mimeType)) {
+    throw new Error('Unsupported image type');
+  }
+  const dir = join(menuPhotoRoot(), locationId);
+  await mkdir(dir, { recursive: true });
+  const out = await sharp(buffer)
+    .rotate()
+    .resize({
+      width: BANNER_MAX_WIDTH,
+      height: BANNER_MAX_HEIGHT,
+      fit: 'inside',
+      withoutEnlargement: true,
+    })
+    .webp({ quality: 84 })
+    .toBuffer();
+  await writeFile(catalogBannerPath(locationId), out);
+}
+
+export async function readCatalogBanner(locationId: string): Promise<Buffer | null> {
+  try {
+    return await readFile(catalogBannerPath(locationId));
+  } catch {
+    return null;
+  }
+}
+
+export async function deleteCatalogBanner(locationId: string): Promise<void> {
+  try {
+    await unlink(catalogBannerPath(locationId));
+  } catch {
+    // missing file is fine
+  }
+}
+
+export function resolveCatalogBannerUrl(
+  appUrl: string,
+  locationId: string,
+  stored: string | null | undefined,
+): string | null {
+  const row = stored?.trim();
+  if (!row) return null;
+  if (isCatalogBannerRef(row)) {
+    const base = appUrl.replace(/\/$/, '');
+    return `${base}/api/public/menu/locations/${locationId}/banner`;
+  }
+  return row;
 }
 
 export async function deleteMenuPhoto(itemId: string, slot: number): Promise<void> {

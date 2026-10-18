@@ -129,6 +129,10 @@ export class CreateMenuItemDto {
   isAvailable?: boolean;
 
   @IsOptional()
+  @IsBoolean()
+  isFeatured?: boolean;
+
+  @IsOptional()
   @ValidateIf((_o, value) => value !== undefined && value !== '')
   @IsUrl({ require_protocol: true })
   @MaxLength(1000)
@@ -183,6 +187,10 @@ export class UpdateMenuItemDto {
   @IsOptional()
   @IsBoolean()
   isAvailable?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  isFeatured?: boolean;
 
   @IsOptional()
   @ValidateIf((_o, value) => value !== undefined && value !== '')
