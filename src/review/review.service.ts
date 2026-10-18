@@ -14,7 +14,7 @@ import { MembersService } from '../members/members.service';
 import { BillingProduct } from '../platform/enums/billing-product.enum';
 import { SubscriptionsService } from '../platform/subscriptions.service';
 import { User } from '../users/user.entity';
-import { UpdateReviewSettingsDto } from './dto/review-settings.dto';
+import { SuggestReviewDraftsDto, UpdateReviewSettingsDto } from './dto/review-settings.dto';
 import { RecordReviewEventDto } from './dto/public-review.dto';
 import { LocationReviewSettings } from './location-review-settings.entity';
 import {
@@ -141,12 +141,13 @@ export class ReviewService {
     });
   }
 
-  async suggestPublicDrafts(code: string, stars: number, answers: ReviewDraftAnswerDto[]) {
+  async suggestPublicDrafts(code: string, dto: SuggestReviewDraftsDto, clientIp: string) {
     const location = await this.findByReviewCode(code);
     await this.assertQuickReviewLive(location.id);
     const settings = await this.ensureSettingsRow(location.id);
     const questions = resolveReviewQuestions(settings.reviewQuestions);
-    const normalized = normalizeDraftAnswers(questions, answers ?? []);
+    const answers = dto.answers ?? [];
+    const normalized = normalizeDraftAnswers(questions, answers);
     const withContent = normalized.filter((row) => row.answer.trim().length >= 2);
     if (answers.length > 0 && !withContent.length) {
       throw new BadRequestException({
@@ -154,14 +155,19 @@ export class ReviewService {
         message: 'Please answer at least one question',
       });
     }
+    const sessionKey = dto.frameSessionId?.trim() || `ip:${clientIp}`;
+    this.drafts.assertFrameGenerationAllowed(code, sessionKey);
     const keywords = settings.keywords ?? [];
+    const exclude = (dto.excludeDrafts ?? []).map((row) => row.trim()).filter(Boolean);
     const suggestions = await this.drafts.suggestDrafts(
       location,
-      stars,
+      dto.stars,
       keywords,
       withContent as ReviewDraftAnswer[],
+      exclude,
     );
-    return { suggestions };
+    const generationsRemaining = this.drafts.recordFrameGeneration(code, sessionKey);
+    return { suggestions, generationsRemaining };
   }
 
   async getReviewSettings(user: User, locationId: string) {

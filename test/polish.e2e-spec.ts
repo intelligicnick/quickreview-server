@@ -198,6 +198,37 @@ describe('Polish — QR claim & AI drafts', () => {
       })
       .expect(200);
     expect(drafts.body.data.suggestions.length).toBe(2);
+    expect(drafts.body.data.generationsRemaining).toBe(1);
+  });
+
+  it('limits public review framing to two generations per session', async () => {
+    const { token, locationId } = await ownerWithLocation();
+    await activateReviewTrial(token, locationId);
+
+    const hub = await request(app.getHttpServer())
+      .get(`/api/locations/${locationId}/quickreview`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    const reviewCode = hub.body.data.reviewCode as string;
+    const sessionId = 'e2e-frame-session';
+    const body = {
+      stars: 5,
+      frameSessionId: sessionId,
+      answers: [{ question: 'What stood out?', answer: 'Friendly team and fair pricing' }],
+    };
+
+    await request(app.getHttpServer())
+      .post(`/api/public/r/${reviewCode}/suggestions`)
+      .send(body)
+      .expect(200);
+    await request(app.getHttpServer())
+      .post(`/api/public/r/${reviewCode}/suggestions`)
+      .send({ ...body, excludeDrafts: ['first', 'second'] })
+      .expect(200);
+    await request(app.getHttpServer())
+      .post(`/api/public/r/${reviewCode}/suggestions`)
+      .send(body)
+      .expect(429);
   });
 
   it('loads QuickDesign hub for a location', async () => {

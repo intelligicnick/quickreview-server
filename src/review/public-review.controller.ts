@@ -1,5 +1,6 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Req } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
+import type { Request } from 'express';
 import { Public } from '../common/decorators/public.decorator';
 import { RecordReviewEventDto } from './dto/public-review.dto';
 import { SuggestReviewDraftsDto } from './dto/review-settings.dto';
@@ -26,7 +27,12 @@ export class PublicReviewController {
   @Post(':code/suggestions')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
-  suggestions(@Param('code') code: string, @Body() dto: SuggestReviewDraftsDto) {
-    return this.reviewService.suggestPublicDrafts(code, dto.stars, dto.answers ?? []);
+  suggestions(
+    @Param('code') code: string,
+    @Body() dto: SuggestReviewDraftsDto,
+    @Req() req: Request,
+  ) {
+    const clientIp = req.ip || req.socket?.remoteAddress || 'unknown';
+    return this.reviewService.suggestPublicDrafts(code, dto, clientIp);
   }
 }

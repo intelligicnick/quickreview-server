@@ -1,9 +1,13 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { BusinessCategory } from '../catalog/business-category.enum';
+import { ERROR_CODES } from '../common/constants';
 import { extractJsonArray, geminiGenerateText } from '../common/utils/gemini-client';
 import { Location } from '../locations/location.entity';
 import type { ReviewDraftAnswer } from './review-questions.constants';
+
+export const REVIEW_FRAME_GENERATION_LIMIT = 2;
+const FRAME_QUOTA_TTL_MS = 6 * 60 * 60 * 1000;
 
 function businessTypeHint(category: BusinessCategory | null | undefined): string | null {
   if (!category) return null;
@@ -70,13 +74,17 @@ function wordOverlapRatio(a: string, b: string): number {
   return shared / Math.min(wa.size, wb.size);
 }
 
+function normalizeDraftKey(text: string): string {
+  return text.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
 /** Pick drafts that share the fewest content words (avoids near-duplicate options). */
 function selectDiverseDrafts(candidates: string[], count: number): string[] {
   const seen = new Set<string>();
   const unique: string[] = [];
   for (const row of candidates) {
     const trimmed = row.trim();
-    const key = trimmed.toLowerCase();
+    const key = normalizeDraftKey(trimmed);
     if (!trimmed || seen.has(key)) continue;
     seen.add(key);
     unique.push(trimmed);
@@ -102,29 +110,83 @@ function selectDiverseDrafts(candidates: string[], count: number): string[] {
   return picked.slice(0, count);
 }
 
+function filterExcluded(candidates: string[], excludeDrafts: string[]): string[] {
+  if (!excludeDrafts.length) return candidates;
+  const excludeKeys = new Set(excludeDrafts.map(normalizeDraftKey));
+  return candidates.filter((row) => {
+    const key = normalizeDraftKey(row);
+    if (excludeKeys.has(key)) return false;
+    return !excludeDrafts.some((prev) => wordOverlapRatio(prev, row) >= 0.72);
+  });
+}
+
 @Injectable()
 export class ReviewDraftService {
   private readonly logger = new Logger(ReviewDraftService.name);
+  private readonly frameQuota = new Map<string, { count: number; at: number }>();
 
   constructor(private readonly config: ConfigService) {}
+
+  assertFrameGenerationAllowed(code: string, sessionKey: string): void {
+    const key = `${code}\0${sessionKey}`;
+    const now = Date.now();
+    const prev = this.frameQuota.get(key);
+    if (!prev || now - prev.at > FRAME_QUOTA_TTL_MS) return;
+    if (prev.count >= REVIEW_FRAME_GENERATION_LIMIT) {
+      throw new HttpException(
+        {
+          code: ERROR_CODES.RATE_LIMITED,
+          message: 'You can frame your review up to 2 times. Pick one of the options above.',
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+  }
+
+  /** Call after a successful draft generation; returns how many more frames remain. */
+  recordFrameGeneration(code: string, sessionKey: string): number {
+    const key = `${code}\0${sessionKey}`;
+    const now = Date.now();
+    const prev = this.frameQuota.get(key);
+    if (!prev || now - prev.at > FRAME_QUOTA_TTL_MS) {
+      this.frameQuota.set(key, { count: 1, at: now });
+      return REVIEW_FRAME_GENERATION_LIMIT - 1;
+    }
+    prev.count += 1;
+    prev.at = now;
+    return REVIEW_FRAME_GENERATION_LIMIT - prev.count;
+  }
 
   async suggestDrafts(
     location: Location,
     stars: number,
     keywords: string[],
     answers: ReviewDraftAnswer[],
+    excludeDrafts: string[] = [],
   ): Promise<string[]> {
     const normalizedKeywords = keywords.map((k) => k.trim()).filter(Boolean).slice(0, 12);
     const apiKey = this.config.get<string>('GEMINI_API_KEY');
     if (apiKey && apiKey !== 'mock') {
-      try {
-        const fromGemini = await this.geminiDrafts(location, stars, normalizedKeywords, answers, apiKey);
-        if (fromGemini.length >= 1) {
-          return selectDiverseDrafts(fromGemini, REVIEW_DRAFT_COUNT);
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const fromGemini = await this.geminiDrafts(
+            location,
+            stars,
+            normalizedKeywords,
+            answers,
+            apiKey,
+            excludeDrafts,
+            attempt > 0,
+          );
+          const fresh = filterExcluded(fromGemini, excludeDrafts);
+          if (fresh.length >= 1) {
+            return selectDiverseDrafts(fresh, REVIEW_DRAFT_COUNT);
+          }
+        } catch (err) {
+          this.logger.warn(`Gemini drafts attempt ${attempt + 1} failed: ${String(err)}`);
         }
-      } catch (err) {
-        this.logger.warn(`Gemini drafts failed, using templates: ${String(err)}`);
       }
+      this.logger.warn('Gemini drafts exhausted retries, using local fallback');
     }
     return this.templateDrafts(
       location.name,
@@ -132,6 +194,7 @@ export class ReviewDraftService {
       stars,
       normalizedKeywords,
       answers,
+      excludeDrafts,
     );
   }
 
@@ -145,25 +208,35 @@ export class ReviewDraftService {
     stars: number,
     keywords: string[],
     answers: ReviewDraftAnswer[],
+    excludeDrafts: string[],
   ): string[] {
     const phrases = splitAnswerPhrases(answers);
-    const fallback = pickOne(keywords) ?? 'great service';
-    const a = phrases[0] ?? fallback;
-    const b = phrases[1] ?? phrases[0] ?? fallback;
-    const c = phrases[2];
+    const theme = pickOne(keywords) ?? pickOne(phrases) ?? 'great service';
+    const parts = phrases.length ? phrases : [theme];
     const at = category === BusinessCategory.SERVICES ? 'working with' : 'at';
-
-    const draftA =
-      c != null
-        ? `I left ${name} with a ${stars}-star impression — ${a.toLowerCase()} and ${b.toLowerCase()} were exactly what I needed.`
-        : `${stars} stars ${at} ${name}. ${a} stood out; I'd happily use them again.`;
-
-    const draftB =
-      c != null
-        ? `Solid experience ${at} ${name}: ${c} mattered most to me, and the team delivered without hassle.`
-        : `${name} earned my recommendation — ${b.toLowerCase()} made the visit worthwhile.`;
-
-    return selectDiverseDrafts([draftA, draftB], REVIEW_DRAFT_COUNT);
+    const leads = shuffle([
+      `I rated ${name} ${stars}/5 because`,
+      `My visit ${at} ${name} stood out —`,
+      `${stars} stars ${at} ${name}:`,
+      `Genuinely happy ${at} ${name}:`,
+    ]);
+    const mids = shuffle(parts);
+    const tails = shuffle([
+      'Would happily return.',
+      'Glad I stopped by.',
+      'Easy to recommend.',
+      'They earned my trust.',
+    ]);
+    const candidates: string[] = [];
+    for (let i = 0; i < Math.min(4, leads.length); i++) {
+      const lead = leads[i]!;
+      const mid = mids[i % mids.length]!;
+      const tail = tails[i % tails.length]!;
+      candidates.push(`${lead} ${mid.charAt(0).toLowerCase()}${mid.slice(1)}. ${tail}`);
+    }
+    const fresh = filterExcluded(candidates, excludeDrafts);
+    const pool = fresh.length >= 1 ? fresh : candidates;
+    return selectDiverseDrafts(pool, REVIEW_DRAFT_COUNT);
   }
 
   private async geminiDrafts(
@@ -172,17 +245,39 @@ export class ReviewDraftService {
     keywords: string[],
     answers: ReviewDraftAnswer[],
     apiKey: string,
+    excludeDrafts: string[],
+    strictRetry: boolean,
   ): Promise<string[]> {
     const model = this.config.get<string>('GEMINI_MODEL') ?? 'gemini-2.0-flash';
+    const angle = pickOne([
+      'warm thank-you',
+      'specific detail highlight',
+      'recommendation to a friend',
+      'brief and punchy',
+      'first-time visitor impressed',
+    ]);
     const draftRules = [
       `Return ONLY a JSON array of exactly ${REVIEW_DRAFT_COUNT} strings, no markdown.`,
       'Write 1–2 natural sentences per draft (real Google review tone).',
       'The two drafts must feel like different people wrote them — different opening, angle, and length.',
-      'Do NOT repeat the same phrases, adjectives, or key nouns across both drafts (e.g. if draft A says "clear communication", draft B must use other words).',
-      'Do NOT dump every customer bullet into each draft — split their points: highlight at most two ideas per draft, spread ideas across the pair.',
+      'Do NOT repeat the same phrases, adjectives, or key nouns across both drafts.',
+      'Do NOT dump every customer bullet into each draft — highlight at most two ideas per draft.',
       'Prefer vivid, specific wording over stacking comma-separated keywords.',
       'No hashtags, no fake staff names, no invented offers.',
+      `Creative angle for this pair: ${angle}.`,
+      `Freshness token (vary wording): ${Date.now()}-${Math.floor(Math.random() * 10_000)}.`,
     ];
+    if (strictRetry) {
+      draftRules.push(
+        'Previous output was too similar to earlier drafts — rewrite completely with new openings and vocabulary.',
+      );
+    }
+    if (excludeDrafts.length) {
+      draftRules.push(
+        'Never reuse or closely paraphrase these earlier drafts:',
+        ...excludeDrafts.map((row, index) => `${index + 1}. ${row}`),
+      );
+    }
 
     const prompt = answers.length
       ? [
@@ -196,7 +291,7 @@ export class ReviewDraftService {
           'Customer answers:',
           this.formatAnswers(answers),
           keywords.length
-            ? `Merchant themes (use ONLY if the customer’s answers clearly relate — never force unrelated words): ${keywords.join(', ')}`
+            ? `Merchant themes (use ONLY if the customer’s answers clearly relate): ${keywords.join(', ')}`
             : null,
         ]
       : [
@@ -206,14 +301,12 @@ export class ReviewDraftService {
           location.address ? `Address hint: ${location.address}` : null,
           businessTypeHint(location.businessCategory),
           `Star rating: ${stars} out of 5`,
-          keywords.length
-            ? `Merchant themes (only if they fit): ${keywords.join(', ')}`
-            : null,
+          keywords.length ? `Merchant themes (only if they fit): ${keywords.join(', ')}` : null,
         ];
     const promptText = prompt.filter(Boolean).join('\n');
 
     const text = await geminiGenerateText(apiKey, model, promptText, {
-      temperature: 0.95,
+      temperature: strictRetry ? 1 : 0.95,
       maxOutputTokens: 1536,
       json: true,
     });

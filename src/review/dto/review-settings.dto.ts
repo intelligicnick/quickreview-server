@@ -51,4 +51,18 @@ export class SuggestReviewDraftsDto {
   @Type(() => ReviewDraftAnswerDto)
   @Transform(({ value }) => (value == null ? [] : value))
   answers?: ReviewDraftAnswerDto[];
+
+  /** Client session id — limits “Frame my review” to 2 calls per visit. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  frameSessionId?: string;
+
+  /** Prior drafts to avoid repeating on “New wordings”. */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(6)
+  @IsString({ each: true })
+  @MaxLength(2000, { each: true })
+  excludeDrafts?: string[];
 }
