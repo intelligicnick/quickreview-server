@@ -7,7 +7,7 @@ import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ERROR_CODES } from '../common/constants';
-import { googleWriteReviewUrl } from '../common/utils/review-code';
+import { googleWriteReviewUrl, normalizeQrStockCode } from '../common/utils/review-code';
 import { BusinessesService } from '../businesses/businesses.service';
 import { Business } from '../businesses/business.entity';
 import { Location } from '../locations/location.entity';
@@ -24,13 +24,6 @@ import { CounterSaleServiceKind } from './counter-sale-service.enum';
 import { CounterSaleHoldingService } from './counter-sale-holding.service';
 import { CounterSaleProvisionerContext } from './guards/counter-sale-provisioner.guard';
 import { CounterSaleProvisionDto } from './dto/counter-sale.dto';
-
-function parseQrCode(raw: string): string {
-  const trimmed = raw.trim();
-  const fromUrl = trimmed.match(/\/q\/([A-Za-z0-9]+)/i)?.[1];
-  const base = fromUrl ?? trimmed;
-  return base.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
-}
 
 @Injectable()
 export class CounterSaleProvisionService {
@@ -72,7 +65,7 @@ export class CounterSaleProvisionService {
   }
 
   async lookupQr(raw: string) {
-    const code = parseQrCode(raw);
+    const code = normalizeQrStockCode(raw);
     const existingProvision = await this.provisions.findOne({ where: { qrCode: code } });
     if (existingProvision) {
       return { code, status: 'assigned' as const };
@@ -88,7 +81,7 @@ export class CounterSaleProvisionService {
   }
 
   async provision(actor: CounterSaleProvisionerContext, dto: CounterSaleProvisionDto) {
-    const code = parseQrCode(dto.qrCode);
+    const code = normalizeQrStockCode(dto.qrCode);
     const placeId = dto.placeId.trim();
 
     if (actor.kind === 'agent') {
