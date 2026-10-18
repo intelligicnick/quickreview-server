@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Response } from 'express';
+import { AllowUnverified } from '../common/decorators/allow-unverified.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import { User } from '../users/user.entity';
@@ -30,6 +31,7 @@ export class GoogleController {
     private readonly config: ConfigService,
   ) {}
 
+  @AllowUnverified()
   @Get('status')
   async status(@CurrentUser() user: User) {
     const connection = await this.oauth.getConnection(user.id);
@@ -41,6 +43,7 @@ export class GoogleController {
     };
   }
 
+  @AllowUnverified()
   @Get('oauth/start')
   start(@CurrentUser() user: User) {
     return { url: this.oauth.buildAuthorizationUrl(user) };
@@ -83,6 +86,7 @@ export class GoogleController {
     }
   }
 
+  @AllowUnverified()
   @Post('places/search')
   @HttpCode(HttpStatus.OK)
   search(@Body() dto: PlacesSearchDto) {

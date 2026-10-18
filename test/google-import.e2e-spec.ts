@@ -16,6 +16,15 @@ describe('Google import (Phase 2)', () => {
     await app?.close();
   });
 
+  async function unverifiedUser() {
+    const email = `google-unverified-${Date.now()}@example.com`;
+    const res = await request(app.getHttpServer())
+      .post('/api/auth/register')
+      .send({ name: 'Importer', email, password: 'Password1' })
+      .expect(201);
+    return res.body.data.accessToken as string;
+  }
+
   async function verifiedUser() {
     const email = `google-${Date.now()}@example.com`;
     const res = await request(app.getHttpServer())
@@ -28,6 +37,25 @@ describe('Google import (Phase 2)', () => {
       .expect(200);
     return res.body.data.accessToken as string;
   }
+
+  it('reports places configured for unverified users', async () => {
+    const token = await unverifiedUser();
+    const res = await request(app.getHttpServer())
+      .get('/api/google/status')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    expect(res.body.data.placesConfigured).toBe(true);
+  });
+
+  it('searches mock places before email verification', async () => {
+    const token = await unverifiedUser();
+    const res = await request(app.getHttpServer())
+      .post('/api/google/places/search')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ query: 'Patel' })
+      .expect(200);
+    expect(res.body.data.length).toBeGreaterThan(0);
+  });
 
   it('searches mock places', async () => {
     const token = await verifiedUser();
