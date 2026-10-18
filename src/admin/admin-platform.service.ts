@@ -86,7 +86,7 @@ export class AdminPlatformService {
       .getRepository(User)
       .count({ where: { emailVerifiedAt: IsNull(), isActive: true, isSuperAdmin: false } });
     const desk =
-      pendingPayments + noPlanShops + ordersToShip + openContact + Math.min(unverifiedMerchants, 8);
+      pendingPayments + ordersToShip + openContact + Math.min(unverifiedMerchants, 6);
     return {
       desk,
       supportInbox: openContact,
@@ -271,7 +271,7 @@ export class AdminPlatformService {
       });
     }
 
-    workQueue.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    workQueue.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
 
     return {
       counts: {
@@ -503,16 +503,17 @@ export class AdminPlatformService {
       id: row.id,
       kind: row.kind,
       status: row.status,
+      userId: row.userId,
       provider: row.provider,
       amountInr: row.amountInr,
       referenceNote: row.referenceNote,
       locationId: row.locationId,
       locationName: row.location?.name ?? null,
       userEmail: row.user?.email ?? null,
-      userId: row.userId,
       planName: row.subscription?.plan?.name ?? null,
       planId: row.subscription?.planId ?? null,
       subscriptionEndDate: row.subscription?.endDate ?? null,
+      orderId: row.orderId,
       createdAt: row.createdAt,
       paidAt: row.paidAt,
     }));

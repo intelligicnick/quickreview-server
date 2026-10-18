@@ -90,9 +90,30 @@ export class SubscriptionsService {
         message: 'Only pending payments can be confirmed',
       });
     }
+    const noteDigits = (note ?? '').replace(/\D/g, '');
+    const existingDigits = (payment.referenceNote ?? '').replace(/\D/g, '');
+    const utr = noteDigits.length === 12 ? noteDigits : existingDigits.length === 12 ? existingDigits : '';
+    if (payment.provider === PaymentProvider.UPI && utr.length !== 12) {
+      throw new BadRequestException({
+        code: ERROR_CODES.VALIDATION_ERROR,
+        message: 'A 12-digit UTR is required before approving this UPI payment',
+      });
+    }
+    if (utr.length === 12) {
+      const duplicate = await this.payments.findOne({
+        where: { referenceNote: utr, status: PaymentStatus.SUCCEEDED },
+      });
+      if (duplicate && duplicate.id !== paymentId) {
+        throw new BadRequestException({
+          code: ERROR_CODES.VALIDATION_ERROR,
+          message: 'This UTR is already recorded on another payment',
+        });
+      }
+    }
     payment.status = PaymentStatus.SUCCEEDED;
     payment.paidAt = new Date();
-    if (note) payment.referenceNote = note.slice(0, 64);
+    if (utr.length === 12) payment.referenceNote = utr;
+    else if (note) payment.referenceNote = note.slice(0, 64);
     await this.payments.save(payment);
 
     if (payment.subscriptionId && payment.subscription) {
@@ -103,7 +124,7 @@ export class SubscriptionsService {
     if (payment.orderId) {
       const order = await this.orders.findOne({ where: { id: payment.orderId } });
       if (order && order.status === MarketplaceOrderStatus.PLACED) {
-        order.status = MarketplaceOrderStatus.CONFIRMED;
+        order.status = MarketplaceOrderStatus.IN_PRODUCTION;
         await this.orders.save(order);
       }
     }
