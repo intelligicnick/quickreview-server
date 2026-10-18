@@ -2,6 +2,7 @@ import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
+  IsBoolean,
   IsInt,
   IsOptional,
   IsString,
@@ -25,6 +26,10 @@ export class UpdateReviewSettingsDto {
   @IsString({ each: true })
   @MaxLength(120, { each: true })
   reviewQuestions?: string[];
+
+  @IsOptional()
+  @IsBoolean()
+  askUnhappyPhone?: boolean;
 }
 
 export class ReviewDraftAnswerDto {

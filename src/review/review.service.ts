@@ -87,6 +87,7 @@ export class ReviewService {
         settings.keywords,
         reviewQuestions.length,
       ),
+      askUnhappyPhone: settings.askUnhappyPhone ?? true,
     };
   }
 
@@ -120,7 +121,8 @@ export class ReviewService {
           message: 'Please share a short message',
         });
       }
-      await this.record(location.id, ReviewEventKind.PRIVATE_FEEDBACK, stars, message);
+      const guestPhone = dto.guestPhone?.trim().slice(0, 32) || null;
+      await this.record(location.id, ReviewEventKind.PRIVATE_FEEDBACK, stars, message, guestPhone);
       return { recorded: true };
     }
 
@@ -184,6 +186,7 @@ export class ReviewService {
       locationId,
       keywords: row.keywords ?? [],
       reviewQuestions: resolveReviewQuestions(row.reviewQuestions),
+      askUnhappyPhone: row.askUnhappyPhone ?? true,
     };
   }
 
@@ -203,11 +206,15 @@ export class ReviewService {
     if (dto.reviewQuestions !== undefined) {
       row.reviewQuestions = dto.reviewQuestions.map((q) => q.trim()).filter(Boolean).slice(0, 5);
     }
+    if (dto.askUnhappyPhone !== undefined) {
+      row.askUnhappyPhone = dto.askUnhappyPhone;
+    }
     await this.reviewSettings.save(row);
     return {
       locationId,
       keywords: row.keywords,
       reviewQuestions: resolveReviewQuestions(row.reviewQuestions),
+      askUnhappyPhone: row.askUnhappyPhone ?? true,
     };
   }
 
@@ -251,6 +258,7 @@ export class ReviewService {
       guestReviewQuestions: resolveReviewQuestions(settings.reviewQuestions),
       businessCategory: location.businessCategory ?? null,
       suggestedReviewAi: reviewAiPresetForCategory(location.businessCategory),
+      askUnhappyPhone: settings.askUnhappyPhone ?? true,
       stats: {
         pageViews,
         stars,
@@ -278,6 +286,7 @@ export class ReviewService {
       id: row.id,
       stars: row.stars,
       message: row.message,
+      guestPhone: row.guestPhone,
       createdAt: row.createdAt,
     }));
   }
@@ -295,20 +304,12 @@ export class ReviewService {
   }
 
   private async assertQuickReviewLive(locationId: string): Promise<void> {
-    const live = await this.subscriptions.hasActiveProduct(
-      locationId,
-      BillingProduct.QUICK_REVIEW,
-    );
-    if (!live) {
-      throw new HttpException(
-        {
-          code: ERROR_CODES.PAYMENT_REQUIRED,
-          message:
-            'This review page is locked until QuickReview is activated for this shop. Choose a plan in your dashboard.',
-        },
-        HttpStatus.PAYMENT_REQUIRED,
-      );
-    }
+    await this.subscriptions.assertProductLive(locationId, BillingProduct.QUICK_REVIEW, {
+      expired:
+        'This review page is offline because the QuickReview plan expired. If you own this business, please renew.',
+      inactive:
+        'This review page is locked until QuickReview is activated for this shop. Choose a plan in your dashboard.',
+    });
   }
 
   private async record(
@@ -316,6 +317,7 @@ export class ReviewService {
     kind: ReviewEventKind,
     stars: number | null,
     message: string | null,
+    guestPhone: string | null = null,
   ) {
     await this.events.save(
       this.events.create({
@@ -323,6 +325,7 @@ export class ReviewService {
         kind,
         stars,
         message,
+        guestPhone,
       }),
     );
   }

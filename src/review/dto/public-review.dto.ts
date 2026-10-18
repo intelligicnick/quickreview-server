@@ -14,4 +14,9 @@ export class RecordReviewEventDto {
   @IsString()
   @MaxLength(2000)
   message?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  guestPhone?: string;
 }

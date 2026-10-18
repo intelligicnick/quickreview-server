@@ -639,17 +639,11 @@ export class RevisitService {
         HttpStatus.NOT_FOUND,
       );
     }
-    const live = await this.subscriptions.hasActiveProduct(locationId, BillingProduct.QUICK_MENU);
-    if (!live) {
-      throw new HttpException(
-        {
-          code: ERROR_CODES.PAYMENT_REQUIRED,
-          message:
-            'Quick Revisit is locked until QuickCommerce is activated for this shop.',
-        },
-        HttpStatus.PAYMENT_REQUIRED,
-      );
-    }
+    await this.subscriptions.assertProductLive(locationId, BillingProduct.QUICK_MENU, {
+      expired:
+        'Quick Revisit is offline because the QuickCommerce plan expired. If you own this business, please renew.',
+      inactive: 'Quick Revisit is locked until QuickCommerce is activated for this shop.',
+    });
   }
 
   private async ensurePublicCode(location: Location): Promise<Location> {

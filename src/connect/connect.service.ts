@@ -236,19 +236,12 @@ export class ConnectService {
   }
 
   private async assertConnectLive(locationId: string): Promise<void> {
-    const live = await this.subscriptions.hasActiveProduct(
-      locationId,
-      BillingProduct.QUICK_CONNECT,
-    );
-    if (!live) {
-      throw new HttpException(
-        {
-          code: ERROR_CODES.PAYMENT_REQUIRED,
-          message: 'This digital card is not published yet. The business needs QuickConnect active.',
-        },
-        HttpStatus.PAYMENT_REQUIRED,
-      );
-    }
+    await this.subscriptions.assertProductLive(locationId, BillingProduct.QUICK_CONNECT, {
+      expired:
+        'This digital card is offline because the QuickConnect plan expired. If you own this business, please renew.',
+      inactive:
+        'This digital card is not published yet. The business needs QuickConnect active.',
+    });
   }
 
   private serializeProfile(profile: ConnectProfile) {

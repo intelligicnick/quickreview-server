@@ -912,16 +912,11 @@ export class MenuService {
   }
 
   private async assertMenuLive(locationId: string): Promise<void> {
-    const live = await this.subscriptions.hasActiveProduct(locationId, BillingProduct.QUICK_MENU);
-    if (!live) {
-      throw new HttpException(
-        {
-          code: ERROR_CODES.PAYMENT_REQUIRED,
-          message: 'This page is not published yet. The business needs Quick Commerce active.',
-        },
-        HttpStatus.PAYMENT_REQUIRED,
-      );
-    }
+    await this.subscriptions.assertProductLive(locationId, BillingProduct.QUICK_MENU, {
+      expired:
+        'This catalogue is offline because the QuickCommerce plan expired. If you own this business, please renew.',
+      inactive: 'This page is not published yet. The business needs Quick Commerce active.',
+    });
   }
 
   private notFound(message: string) {

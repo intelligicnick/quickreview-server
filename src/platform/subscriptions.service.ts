@@ -1,5 +1,7 @@
 import {
   BadRequestException,
+  HttpException,
+  HttpStatus,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -174,6 +176,25 @@ export class SubscriptionsService {
   async hasActiveProduct(locationId: string, product: BillingProduct): Promise<boolean> {
     const access = await this.getProductAccess(locationId, product);
     return access.unlocked;
+  }
+
+  async assertProductLive(
+    locationId: string,
+    product: BillingProduct,
+    messages: { expired: string; inactive: string },
+  ): Promise<void> {
+    const access = await this.getProductAccess(locationId, product);
+    if (access.unlocked) return;
+    const today = todayIso();
+    const expired =
+      access.status === 'EXPIRED' || (access.endDate != null && access.endDate < today);
+    throw new HttpException(
+      {
+        code: expired ? ERROR_CODES.PLAN_EXPIRED : ERROR_CODES.PAYMENT_REQUIRED,
+        message: expired ? messages.expired : messages.inactive,
+      },
+      HttpStatus.PAYMENT_REQUIRED,
+    );
   }
 
   async getProductAccess(locationId: string, product: BillingProduct): Promise<ProductAccess> {

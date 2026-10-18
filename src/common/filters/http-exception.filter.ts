@@ -50,7 +50,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       if (status === HttpStatus.CONFLICT && code === ERROR_CODES.INTERNAL_ERROR) {
         code = ERROR_CODES.CONFLICT;
       }
-      if (status === HttpStatus.PAYMENT_REQUIRED) {
+      if (status === HttpStatus.PAYMENT_REQUIRED && code === ERROR_CODES.INTERNAL_ERROR) {
         code = ERROR_CODES.PAYMENT_REQUIRED;
       }
       if (status === HttpStatus.TOO_MANY_REQUESTS) {

@@ -20,6 +20,9 @@ export class ReviewEvent {
   @Column({ type: 'varchar', length: 2000, nullable: true })
   message: string | null;
 
+  @Column({ type: 'varchar', length: 32, nullable: true })
+  guestPhone: string | null;
+
   @CreateDateColumn()
   createdAt: Date;
 

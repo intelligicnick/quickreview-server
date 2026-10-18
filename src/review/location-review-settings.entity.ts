@@ -25,6 +25,9 @@ export class LocationReviewSettings {
   @Column({ type: 'text', nullable: true, transformer: jsonStringArrayTransformer })
   reviewQuestions: string[] | null;
 
+  @Column({ type: 'boolean', default: true })
+  askUnhappyPhone: boolean;
+
   @UpdateDateColumn()
   updatedAt: Date;
 
