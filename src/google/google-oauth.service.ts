@@ -149,10 +149,16 @@ export class GoogleOAuthService {
   }
 
   private tokenEncryptionKey(): string {
-    return (
-      this.config.get<string>('GOOGLE_TOKEN_ENCRYPTION_KEY')?.trim() ||
-      this.config.getOrThrow<string>('JWT_ACCESS_SECRET')
-    );
+    const dedicated = this.config.get<string>('GOOGLE_TOKEN_ENCRYPTION_KEY')?.trim();
+    if (dedicated) return dedicated;
+    const isProd = this.config.get<string>('NODE_ENV') === 'production';
+    if (isProd && this.isConfigured()) {
+      throw new ServiceUnavailableException({
+        code: ERROR_CODES.INTERNAL_ERROR,
+        message: 'GOOGLE_TOKEN_ENCRYPTION_KEY is required in production when Google OAuth is configured',
+      });
+    }
+    return this.config.getOrThrow<string>('JWT_ACCESS_SECRET');
   }
 
   private signState(userId: string): string {

@@ -10,6 +10,7 @@ import { CounterSaleHoldingService } from './counter-sale-holding.service';
 import { CreateCounterSaleAgentDto, UpdateCounterSaleAgentDto } from './dto/counter-sale.dto';
 import { Business } from '../businesses/business.entity';
 import { Location } from '../locations/location.entity';
+import { QrCode } from '../platform/entities/qr-code.entity';
 
 @Injectable()
 export class CounterSaleAgentsService {
@@ -18,6 +19,7 @@ export class CounterSaleAgentsService {
     @InjectRepository(CounterSaleProvision) private readonly provisions: Repository<CounterSaleProvision>,
     @InjectRepository(Business) private readonly businesses: Repository<Business>,
     @InjectRepository(Location) private readonly locations: Repository<Location>,
+    @InjectRepository(QrCode) private readonly qrCodes: Repository<QrCode>,
     private readonly auth: CounterSaleAuthService,
     private readonly holding: CounterSaleHoldingService,
   ) {}
@@ -104,8 +106,13 @@ export class CounterSaleAgentsService {
         : [];
     const agentRows =
       agentIds.length > 0 ? await this.agents.find({ where: { id: In(agentIds) } }) : [];
+    const qrCodesList =
+      rows.length > 0
+        ? await this.qrCodes.find({ where: { code: In(rows.map((r) => r.qrCode)) } })
+        : [];
 
     const businessMap = new Map(businesses.map((b) => [b.id, b]));
+    const qrMap = new Map(qrCodesList.map((q) => [q.code, q]));
     const locationMap = new Map(locations.map((l) => [l.id, l]));
     const agentMap = new Map(agentRows.map((a) => [a.id, a.username]));
 
@@ -141,6 +148,7 @@ export class CounterSaleAgentsService {
                 address: location.address,
               }
             : null,
+          targetUrl: qrMap.get(row.qrCode)?.targetUrl?.trim() || null,
         };
       })
       .filter((row) => {

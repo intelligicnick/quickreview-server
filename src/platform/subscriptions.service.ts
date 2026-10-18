@@ -81,6 +81,9 @@ export class SubscriptionsService {
     if (!payment) {
       throw new NotFoundException({ code: ERROR_CODES.NOT_FOUND, message: 'Payment not found' });
     }
+    if (payment.status === PaymentStatus.SUCCEEDED) {
+      return { id: payment.id, status: payment.status };
+    }
     if (payment.status !== PaymentStatus.PENDING) {
       throw new BadRequestException({
         code: ERROR_CODES.VALIDATION_ERROR,

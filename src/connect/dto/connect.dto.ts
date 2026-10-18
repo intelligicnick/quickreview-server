@@ -9,6 +9,7 @@ import {
   MinLength,
   ValidateIf,
 } from 'class-validator';
+import { IsSafeExternalUrl } from '../../common/validators/is-safe-external-url';
 import { ConnectLinkType } from '../connect-link-type.enum';
 
 export class UpdateConnectProfileDto {
@@ -80,6 +81,7 @@ export class CreateConnectLinkDto {
   @IsString()
   @MinLength(4)
   @MaxLength(1000)
+  @IsSafeExternalUrl()
   url: string;
 
   @IsOptional()
@@ -102,6 +104,7 @@ export class UpdateConnectLinkDto {
   @IsString()
   @MinLength(4)
   @MaxLength(1000)
+  @IsSafeExternalUrl()
   url?: string;
 
   @IsOptional()

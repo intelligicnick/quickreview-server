@@ -25,6 +25,13 @@ export class CreateCounterSaleAgentDto {
   pin!: string;
 }
 
+export class CounterSaleSessionTicketDto {
+  @IsString()
+  @MinLength(16)
+  @MaxLength(128)
+  ticket!: string;
+}
+
 export class UpdateCounterSaleAgentDto {
   @IsBoolean()
   isActive!: boolean;

@@ -8,6 +8,7 @@ import { UsersService } from '../users/users.service';
 export type AccessJwtPayload = {
   sub: string;
   email: string;
+  typ?: string;
 };
 
 @Injectable()
@@ -25,6 +26,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: AccessJwtPayload) {
+    if (payload.typ === 'counter_sale') {
+      throw new UnauthorizedException({
+        code: ERROR_CODES.UNAUTHORIZED,
+        message: 'Invalid session',
+      });
+    }
     const user = await this.usersService.findById(payload.sub);
     if (!user) {
       throw new UnauthorizedException({

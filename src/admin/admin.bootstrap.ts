@@ -42,22 +42,8 @@ export class AdminBootstrap implements OnModuleInit {
       return;
     }
 
-    let changed = false;
-    if (!user.isSuperAdmin) {
-      user.isSuperAdmin = true;
-      changed = true;
-    }
-    if (!user.emailVerifiedAt) {
-      user.emailVerifiedAt = new Date();
-      changed = true;
-    }
-    if (!user.isActive) {
-      user.isActive = true;
-      changed = true;
-    }
-    if (changed) {
-      await this.users.save(user);
-      this.logger.log(`Granted super admin access to ${email}`);
-    }
+    this.logger.warn(
+      `SUPER_ADMIN_EMAIL matches existing user ${email}; skipping auto-promote. Grant isSuperAdmin manually or use a dedicated bootstrap email.`,
+    );
   }
 }

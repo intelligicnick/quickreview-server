@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ERROR_CODES } from '../common/constants';
@@ -43,7 +44,31 @@ export class CounterSaleProvisionService {
     private readonly qrCodesService: QrCodesService,
     private readonly holding: CounterSaleHoldingService,
     private readonly adminPlatform: AdminPlatformService,
+    private readonly config: ConfigService,
   ) {}
+
+  private dailyProvisionCap(): number {
+    const raw = this.config.get<string>('COUNTER_SALE_DAILY_PROVISION_CAP');
+    const n = raw ? Number.parseInt(raw, 10) : 25;
+    return Number.isFinite(n) && n > 0 ? n : 25;
+  }
+
+  private async assertAgentDailyProvisionCap(agentId: string): Promise<void> {
+    const start = new Date();
+    start.setUTCHours(0, 0, 0, 0);
+    const count = await this.provisions
+      .createQueryBuilder('p')
+      .where('p.provisionedByAgentId = :agentId', { agentId })
+      .andWhere('p.createdAt >= :start', { start })
+      .getCount();
+    const cap = this.dailyProvisionCap();
+    if (count >= cap) {
+      throw new BadRequestException({
+        code: ERROR_CODES.VALIDATION_ERROR,
+        message: `Daily provision limit (${cap}) reached for this agent`,
+      });
+    }
+  }
 
   async lookupQr(raw: string) {
     const code = parseQrCode(raw);
@@ -67,6 +92,10 @@ export class CounterSaleProvisionService {
   async provision(actor: CounterSaleProvisionerContext, dto: CounterSaleProvisionDto) {
     const code = parseQrCode(dto.qrCode);
     const placeId = dto.placeId.trim();
+
+    if (actor.kind === 'agent') {
+      await this.assertAgentDailyProvisionCap(actor.agent.id);
+    }
 
     const existingProvision = await this.provisions.findOne({ where: { qrCode: code } });
     if (existingProvision) {
@@ -104,7 +133,7 @@ export class CounterSaleProvisionService {
     );
 
     const kind = dto.service === CounterSaleServiceKind.MENU ? 'menu' : 'review';
-    await this.qrCodesService.assignQrToLocation(qr, location, kind);
+    const assignedQr = await this.qrCodesService.assignQrToLocation(qr, location, kind);
 
     const planCode =
       dto.service === CounterSaleServiceKind.MENU ? 'quickmenu_trial' : 'quickreview_trial';
@@ -133,7 +162,17 @@ export class CounterSaleProvisionService {
     );
 
     const freshLocation = await this.locations.findOne({ where: { id: location.id } });
-    const freshQr = await this.qrCodes.findOne({ where: { id: qr.id } });
+    const googleReviewUrl =
+      freshLocation?.googleReviewUrl ?? googleWriteReviewUrl(placeId);
+    const targetUrl = assignedQr.targetUrl?.trim() || null;
+
+    const summary = {
+      qrCode: code,
+      businessName: business.name,
+      service: dto.service,
+      googleReviewUrl,
+      targetUrl,
+    };
 
     return {
       provisionId: row.id,
@@ -143,10 +182,11 @@ export class CounterSaleProvisionService {
       location: {
         id: location.id,
         name: location.name,
-        googleReviewUrl: freshLocation?.googleReviewUrl ?? googleWriteReviewUrl(placeId),
+        googleReviewUrl,
         googlePlaceId: placeId,
       },
-      targetUrl: freshQr?.targetUrl ?? null,
+      targetUrl,
+      summary,
       createdAt: row.createdAt,
     };
   }

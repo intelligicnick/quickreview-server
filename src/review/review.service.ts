@@ -94,11 +94,6 @@ export class ReviewService {
     const location = await this.findByReviewCode(code);
     await this.assertQuickReviewLive(location.id);
 
-    if (dto.type === 'page_view') {
-      await this.record(location.id, ReviewEventKind.PAGE_VIEW, null, null);
-      return { recorded: true };
-    }
-
     const stars = dto.stars;
     if (dto.type === 'star') {
       if (!stars) {

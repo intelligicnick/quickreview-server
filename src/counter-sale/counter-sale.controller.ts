@@ -7,6 +7,7 @@ import { CounterSaleProvisionService } from './counter-sale-provision.service';
 import { CounterSaleProvisioner } from './decorators/counter-sale-provisioner.decorator';
 import {
   CounterSaleLoginDto,
+  CounterSaleSessionTicketDto,
   CounterSalePlacesQueryDto,
   CounterSaleProvisionDto,
   CounterSaleQrLookupQueryDto,
@@ -27,6 +28,14 @@ export class CounterSaleController {
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   login(@Body() dto: CounterSaleLoginDto) {
     return this.auth.login(dto);
+  }
+
+  @Public()
+  @Post('auth/session')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  exchangeSession(@Body() dto: CounterSaleSessionTicketDto) {
+    return this.auth.redeemSessionTicket(dto.ticket);
   }
 
   @Public()

@@ -71,7 +71,12 @@ export const ENTITIES = [
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
         const url = config.getOrThrow<string>('DATABASE_URL');
-        const sync = config.get<string>('DATABASE_SYNC') === 'true';
+        const isProd = config.get<string>('NODE_ENV') === 'production';
+        const syncRequested = config.get<string>('DATABASE_SYNC') === 'true';
+        if (isProd && syncRequested) {
+          throw new Error('DATABASE_SYNC must not be enabled when NODE_ENV=production');
+        }
+        const sync = syncRequested && !isProd;
         const migrationsRun = config.get<string>('DATABASE_MIGRATIONS_RUN') === 'true';
         return {
           type: 'mysql',

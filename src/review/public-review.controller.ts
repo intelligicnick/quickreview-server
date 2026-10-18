@@ -11,6 +11,7 @@ export class PublicReviewController {
   constructor(private readonly reviewService: ReviewService) {}
 
   @Get(':code')
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   getPage(@Param('code') code: string) {
     return this.reviewService.getPublicPage(code);
   }

@@ -76,7 +76,7 @@ describe('Counter sale', () => {
       .post(`/api/admin/counter-sale/agents/${agentId}/session`)
       .set('Authorization', `Bearer ${adminToken}`)
       .expect(201);
-    expect(session.body.data.accessToken).toBeTruthy();
+    expect(session.body.data.ticket).toBeTruthy();
 
     const login = await request(app.getHttpServer())
       .post('/api/counter-sale/auth/login')
@@ -108,6 +108,8 @@ describe('Counter sale', () => {
     expect(assigned.body.data.status).toBe('assigned');
 
     expect(provision.body.data.targetUrl).toContain('/r/');
+    expect(provision.body.data.summary.targetUrl).toContain('/r/');
+    expect(provision.body.data.summary.googleReviewUrl).toContain('ChIJMOCKPATEL001');
     expect(provision.body.data.location.googlePlaceId).toBe('ChIJMOCKPATEL001');
 
     const list = await request(app.getHttpServer())

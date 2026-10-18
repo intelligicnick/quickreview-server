@@ -1,8 +1,8 @@
 import { IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 
 export class RecordReviewEventDto {
-  @IsIn(['page_view', 'star', 'private', 'google_open'])
-  type: 'page_view' | 'star' | 'private' | 'google_open';
+  @IsIn(['star', 'private', 'google_open'])
+  type: 'star' | 'private' | 'google_open';
 
   @IsOptional()
   @IsInt()
