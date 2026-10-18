@@ -36,13 +36,14 @@ describe('Counter sale', () => {
     return { email, token: reg.body.data.accessToken as string };
   }
 
-  async function printedQr(adminToken: string) {
+  async function batchQr(adminToken: string, markPrinted = true) {
     const batch = await request(app.getHttpServer())
       .post('/api/admin/qr-codes/batches')
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ size: 1 })
       .expect(201);
     const code = batch.body.data.codes[0] as string;
+    if (!markPrinted) return code;
     const list = await request(app.getHttpServer())
       .get('/api/admin/qr-codes')
       .set('Authorization', `Bearer ${adminToken}`)
@@ -55,6 +56,20 @@ describe('Counter sale', () => {
       .expect(200);
     return code;
   }
+
+  async function printedQr(adminToken: string) {
+    return batchQr(adminToken, true);
+  }
+
+  it('lookup treats unassigned stock as ready even before printed flag', async () => {
+    const { token: adminToken } = await superAdmin();
+    const code = await batchQr(adminToken, false);
+    const lookup = await request(app.getHttpServer())
+      .get(`/api/counter-sale/qr-codes/lookup?code=${code}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    expect(lookup.body.data.status).toBe('ready');
+  });
 
   it('agent login, provision, list, and transfer', async () => {
     const { email: holdingEmail, token: adminToken } = await superAdmin();

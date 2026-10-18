@@ -28,7 +28,8 @@ import { CounterSaleProvisionDto } from './dto/counter-sale.dto';
 function parseQrCode(raw: string): string {
   const trimmed = raw.trim();
   const fromUrl = trimmed.match(/\/q\/([A-Za-z0-9]+)/i)?.[1];
-  return (fromUrl ?? trimmed).toUpperCase();
+  const base = fromUrl ?? trimmed;
+  return base.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
 }
 
 @Injectable()
@@ -83,9 +84,6 @@ export class CounterSaleProvisionService {
     if (qr.locationId) {
       return { code, status: 'assigned' as const };
     }
-    if (!qr.isPrinted) {
-      return { code, status: 'not_printed' as const };
-    }
     return { code, status: 'ready' as const };
   }
 
@@ -117,6 +115,10 @@ export class CounterSaleProvisionService {
         code: ERROR_CODES.VALIDATION_ERROR,
         message: 'This QR code is already linked to a location',
       });
+    }
+    if (!qr.isPrinted) {
+      qr.isPrinted = true;
+      await this.qrCodes.save(qr);
     }
     this.qrCodesService.assertAssignableStock(qr, '');
 
