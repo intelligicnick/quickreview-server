@@ -312,6 +312,7 @@ export class AdminPlatformService {
       .where('sub.status = :active', { active: SubscriptionStatus.ACTIVE })
       .andWhere('sub.startDate <= :today', { today })
       .andWhere('sub.endDate >= :today', { today })
+      .groupBy('sub.planId')
       .getRawMany<{ planId: string; locations: string }>();
     const soldMap = new Map(sold.map((row) => [row.planId, Number(row.locations)]));
     return rows.map((plan) => ({
@@ -327,11 +328,46 @@ export class AdminPlatformService {
     }));
   }
 
-  async updatePlan(planId: string, patch: { isActive?: boolean; amountInr?: number }) {
+  async createPlan(body: {
+    code: string;
+    name: string;
+    product: BillingProduct;
+    amountInr: number;
+    durationDays: number;
+    isActive?: boolean;
+    sortOrder?: number;
+  }) {
+    const code = body.code.trim().toLowerCase();
+    const taken = await this.plans.findOne({ where: { code } });
+    if (taken) {
+      throw new BadRequestException({
+        code: ERROR_CODES.VALIDATION_ERROR,
+        message: 'A plan with this code already exists',
+      });
+    }
+    const plan = this.plans.create({
+      code,
+      name: body.name.trim(),
+      product: body.product,
+      amountInr: body.amountInr,
+      durationDays: body.durationDays,
+      isActive: body.isActive ?? true,
+      sortOrder: body.sortOrder ?? 0,
+    });
+    await this.plans.save(plan);
+    return plan;
+  }
+
+  async updatePlan(
+    planId: string,
+    patch: { isActive?: boolean; amountInr?: number; name?: string; durationDays?: number },
+  ) {
     const plan = await this.plans.findOne({ where: { id: planId } });
     if (!plan) throw this.notFound('Plan not found');
     if (patch.isActive !== undefined) plan.isActive = patch.isActive;
     if (patch.amountInr !== undefined) plan.amountInr = patch.amountInr;
+    if (patch.name !== undefined) plan.name = patch.name.trim();
+    if (patch.durationDays !== undefined) plan.durationDays = patch.durationDays;
     await this.plans.save(plan);
     return plan;
   }

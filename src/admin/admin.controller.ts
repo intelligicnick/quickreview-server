@@ -24,6 +24,7 @@ import {
   AdminUsersQueryDto,
   AssignQrCodeDto,
   CreateManualPaymentDto,
+  CreatePlanDto,
   CreateMarketplaceCategoryDto,
   CreateQrBatchDto,
   CreateQrProductDto,
@@ -129,6 +130,11 @@ export class AdminController {
   @Get('plans')
   listPlans() {
     return this.platform.listPlans();
+  }
+
+  @Post('plans')
+  createPlan(@Body() dto: CreatePlanDto) {
+    return this.platform.createPlan(dto);
   }
 
   @Patch('plans/:planId')

@@ -18,6 +18,7 @@ import { LocationStatus } from '../../locations/location-status.enum';
 import { MarketplaceOrderStatus } from '../../platform/enums/marketplace-order-status.enum';
 import { PaymentProvider } from '../../platform/enums/payment-provider.enum';
 import { PaymentStatus } from '../../platform/enums/payment-status.enum';
+import { BillingProduct } from '../../platform/enums/billing-product.enum';
 import { SubscriptionStatus } from '../../platform/enums/subscription-status.enum';
 
 export class AdminUsersQueryDto {
@@ -106,6 +107,41 @@ export class AdminQrCodesQueryDto {
   merchantDigital?: 'true';
 }
 
+export class CreatePlanDto {
+  @IsString()
+  @MinLength(2)
+  @MaxLength(48)
+  code: string;
+
+  @IsString()
+  @MinLength(2)
+  @MaxLength(120)
+  name: string;
+
+  @IsEnum(BillingProduct)
+  product: BillingProduct;
+
+  @IsInt()
+  @Min(0)
+  @Max(1_000_000)
+  amountInr: number;
+
+  @IsInt()
+  @Min(1)
+  @Max(366)
+  durationDays: number;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(10_000)
+  sortOrder?: number;
+}
+
 export class UpdatePlanDto {
   @IsOptional()
   @IsBoolean()
@@ -116,6 +152,18 @@ export class UpdatePlanDto {
   @Min(0)
   @Max(1_000_000)
   amountInr?: number;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(120)
+  name?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(366)
+  durationDays?: number;
 }
 
 export class GrantCompSubscriptionDto {
