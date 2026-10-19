@@ -8,6 +8,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { computeCheckoutTotals } from './billing-bundle';
+import { isTrialPlanCode } from './plan-codes';
 import { ERROR_CODES } from '../common/constants';
 import { Location } from '../locations/location.entity';
 import { MANAGER_ROLES } from '../members/member-role.enum';
@@ -377,18 +378,35 @@ export class SubscriptionsService {
 
     for (const plan of orderedPlans) {
       const current = await this.getProductAccess(locationId, plan.product);
-      if (this.productAccessIsLive(current)) {
-        throw new BadRequestException({
-          code: ERROR_CODES.VALIDATION_ERROR,
-          message: 'This location already has an active plan for that product',
-        });
-      }
       if (current.status === 'PENDING_PAYMENT') {
         throw new BadRequestException({
           code: ERROR_CODES.VALIDATION_ERROR,
           message:
             'A payment is already pending for this product. Wait for confirmation or contact support.',
         });
+      }
+      if (this.productAccessIsLive(current)) {
+        const today = todayIso();
+        const activeTrial = await this.subscriptions.findOne({
+          where: {
+            locationId,
+            product: plan.product,
+            status: SubscriptionStatus.ACTIVE,
+          },
+          relations: { plan: true },
+          order: { createdAt: 'DESC' },
+        });
+        const onIntroTrial =
+          activeTrial &&
+          activeTrial.endDate >= today &&
+          activeTrial.plan &&
+          isTrialPlanCode(activeTrial.plan.code);
+        if (!onIntroTrial) {
+          throw new BadRequestException({
+            code: ERROR_CODES.VALIDATION_ERROR,
+            message: 'This location already has an active plan for that product',
+          });
+        }
       }
     }
 
