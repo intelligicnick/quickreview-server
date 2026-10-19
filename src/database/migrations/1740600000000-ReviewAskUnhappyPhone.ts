@@ -5,15 +5,17 @@ export class ReviewAskUnhappyPhone1740600000000 implements MigrationInterface {
 
   async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(
-      `ALTER TABLE "location_review_settings" ADD COLUMN "askUnhappyPhone" boolean NOT NULL DEFAULT true`,
+      `ALTER TABLE \`location_review_settings\` ADD \`askUnhappyPhone\` tinyint NOT NULL DEFAULT 1`,
     );
     await queryRunner.query(
-      `ALTER TABLE "review_events" ADD COLUMN "guestPhone" varchar(32)`,
+      `ALTER TABLE \`review_events\` ADD \`guestPhone\` varchar(32) NULL`,
     );
   }
 
   async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`ALTER TABLE "review_events" DROP COLUMN "guestPhone"`);
-    await queryRunner.query(`ALTER TABLE "location_review_settings" DROP COLUMN "askUnhappyPhone"`);
+    await queryRunner.query(`ALTER TABLE \`review_events\` DROP COLUMN \`guestPhone\``);
+    await queryRunner.query(
+      `ALTER TABLE \`location_review_settings\` DROP COLUMN \`askUnhappyPhone\``,
+    );
   }
 }
