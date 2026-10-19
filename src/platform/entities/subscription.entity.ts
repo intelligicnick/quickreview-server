@@ -65,6 +65,10 @@ export class Subscription {
   @Column({ type: 'int' })
   amountInr: number;
 
+  @Index()
+  @Column({ type: 'varchar', length: 36, nullable: true })
+  checkoutPaymentId: string | null;
+
   @CreateDateColumn()
   createdAt: Date;
 

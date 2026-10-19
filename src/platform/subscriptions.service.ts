@@ -6,7 +6,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
+import { computeCheckoutTotals } from './billing-bundle';
 import { ERROR_CODES } from '../common/constants';
 import { Location } from '../locations/location.entity';
 import { MANAGER_ROLES } from '../members/member-role.enum';
@@ -68,6 +69,42 @@ export class SubscriptionsService {
     await this.qrCodes.ensureMerchantDigitalQr(locationId, product);
   }
 
+  private async activateSubscriptionsForPayment(payment: Payment): Promise<void> {
+    if (payment.subscriptionId && payment.subscription) {
+      payment.subscription.status = SubscriptionStatus.ACTIVE;
+      await this.subscriptions.save(payment.subscription);
+      await this.onPlanActivated(payment.subscription.locationId, payment.subscription.product);
+      return;
+    }
+    const bundleSubs = await this.subscriptions.find({
+      where: { checkoutPaymentId: payment.id },
+    });
+    for (const sub of bundleSubs) {
+      sub.status = SubscriptionStatus.ACTIVE;
+      await this.subscriptions.save(sub);
+      await this.onPlanActivated(sub.locationId, sub.product);
+    }
+  }
+
+  private async cancelSubscriptionsForPayment(payment: Payment): Promise<void> {
+    if (payment.subscriptionId && payment.subscription) {
+      payment.subscription.status = SubscriptionStatus.CANCELLED;
+      await this.subscriptions.save(payment.subscription);
+      return;
+    }
+    const bundleSubs = await this.subscriptions.find({
+      where: { checkoutPaymentId: payment.id },
+    });
+    for (const sub of bundleSubs) {
+      sub.status = SubscriptionStatus.CANCELLED;
+      await this.subscriptions.save(sub);
+    }
+  }
+
+  private productAccessIsLive(access: ProductAccess): boolean {
+    return access.unlocked || access.status === 'ACTIVE';
+  }
+
   async findPendingPaymentByRazorpayOrder(orderId: string): Promise<Payment | null> {
     const ref = this.razorpay.orderReference(orderId);
     return this.payments.findOne({
@@ -118,11 +155,7 @@ export class SubscriptionsService {
     else if (note) payment.referenceNote = note.slice(0, 64);
     await this.payments.save(payment);
 
-    if (payment.subscriptionId && payment.subscription) {
-      payment.subscription.status = SubscriptionStatus.ACTIVE;
-      await this.subscriptions.save(payment.subscription);
-      await this.onPlanActivated(payment.subscription.locationId, payment.subscription.product);
-    }
+    await this.activateSubscriptionsForPayment(payment);
     if (payment.orderId) {
       const order = await this.orders.findOne({ where: { id: payment.orderId } });
       if (order && order.status === MarketplaceOrderStatus.PLACED) {
@@ -150,10 +183,7 @@ export class SubscriptionsService {
     payment.status = PaymentStatus.FAILED;
     payment.referenceNote = reason.slice(0, 64);
     await this.payments.save(payment);
-    if (payment.subscriptionId && payment.subscription) {
-      payment.subscription.status = SubscriptionStatus.CANCELLED;
-      await this.subscriptions.save(payment.subscription);
-    }
+    await this.cancelSubscriptionsForPayment(payment);
     return { id: payment.id, status: payment.status };
   }
 
@@ -308,9 +338,17 @@ export class SubscriptionsService {
   async startCheckout(
     user: User,
     locationId: string,
-    planId: string,
+    planIds: string[],
     provider?: PaymentProvider,
   ) {
+    const uniquePlanIds = [...new Set(planIds)];
+    if (uniquePlanIds.length !== planIds.length) {
+      throw new BadRequestException({
+        code: ERROR_CODES.VALIDATION_ERROR,
+        message: 'Duplicate plans are not allowed in one checkout',
+      });
+    }
+
     const location = await this.locations.findOne({
       where: { id: locationId },
       relations: { business: true },
@@ -320,23 +358,38 @@ export class SubscriptionsService {
     }
     await this.members.assertMember(user, location.businessId, MANAGER_ROLES);
 
-    const plan = await this.plans.findOne({ where: { id: planId, isActive: true } });
-    if (!plan) {
+    const planRows = await this.plans.find({
+      where: { id: In(uniquePlanIds), isActive: true },
+    });
+    if (planRows.length !== uniquePlanIds.length) {
       throw new NotFoundException({ code: ERROR_CODES.NOT_FOUND, message: 'Plan not found' });
     }
+    const planById = new Map(planRows.map((p) => [p.id, p]));
+    const orderedPlans = uniquePlanIds.map((id) => planById.get(id)!);
 
-    const current = await this.getProductAccess(locationId, plan.product);
-    if (current.unlocked) {
+    const products = orderedPlans.map((p) => p.product);
+    if (new Set(products).size !== products.length) {
       throw new BadRequestException({
         code: ERROR_CODES.VALIDATION_ERROR,
-        message: 'This location already has an active plan for that product',
+        message: 'Choose at most one plan per product',
       });
     }
-    if (current.status === 'PENDING_PAYMENT') {
-      throw new BadRequestException({
-        code: ERROR_CODES.VALIDATION_ERROR,
-        message: 'A payment is already pending for this product. Wait for confirmation or contact support.',
-      });
+
+    for (const plan of orderedPlans) {
+      const current = await this.getProductAccess(locationId, plan.product);
+      if (this.productAccessIsLive(current)) {
+        throw new BadRequestException({
+          code: ERROR_CODES.VALIDATION_ERROR,
+          message: 'This location already has an active plan for that product',
+        });
+      }
+      if (current.status === 'PENDING_PAYMENT') {
+        throw new BadRequestException({
+          code: ERROR_CODES.VALIDATION_ERROR,
+          message:
+            'A payment is already pending for this product. Wait for confirmation or contact support.',
+        });
+      }
     }
 
     if (
@@ -358,6 +411,10 @@ export class SubscriptionsService {
       });
     }
 
+    const totals = computeCheckoutTotals(
+      orderedPlans.map((p) => ({ product: p.product, amountInr: p.amountInr })),
+    );
+
     const today = todayIso();
     const source =
       provider === PaymentProvider.RAZORPAY
@@ -366,39 +423,67 @@ export class SubscriptionsService {
           ? SubscriptionSource.UPI
           : SubscriptionSource.CASH;
 
-    const sub = await this.subscriptions.save(
-      this.subscriptions.create({
-        locationId: location.id,
-        userId: user.id,
-        planId: plan.id,
-        product: plan.product,
-        status: SubscriptionStatus.PENDING_PAYMENT,
-        source,
-        startDate: today,
-        endDate: addDaysIso(today, plan.durationDays),
-        amountInr: plan.amountInr,
-      }),
-    );
     const payment = await this.payments.save(
       this.payments.create({
         kind: PaymentKind.SUBSCRIPTION,
         status: PaymentStatus.PENDING,
         provider,
-        amountInr: plan.amountInr,
+        amountInr: totals.totalInr,
         userId: user.id,
         locationId: location.id,
-        subscriptionId: sub.id,
+        subscriptionId: null,
       }),
     );
 
+    const subs: Subscription[] = [];
+    for (let i = 0; i < orderedPlans.length; i++) {
+      const plan = orderedPlans[i]!;
+      const amountInr = totals.perPlanAmounts[i]!;
+      const sub = await this.subscriptions.save(
+        this.subscriptions.create({
+          locationId: location.id,
+          userId: user.id,
+          planId: plan.id,
+          product: plan.product,
+          status: SubscriptionStatus.PENDING_PAYMENT,
+          source,
+          startDate: today,
+          endDate: addDaysIso(today, plan.durationDays),
+          amountInr,
+          checkoutPaymentId: orderedPlans.length > 1 ? payment.id : null,
+        }),
+      );
+      subs.push(sub);
+    }
+
+    if (subs.length === 1) {
+      payment.subscriptionId = subs[0]!.id;
+      await this.payments.save(payment);
+    }
+
+    const lineItems = orderedPlans.map((plan, i) => ({
+      planId: plan.id,
+      product: plan.product,
+      amountInr: totals.perPlanAmounts[i]!,
+    }));
+
+    const baseResponse = {
+      subscriptionId: subs.length === 1 ? subs[0]!.id : null,
+      subscriptionIds: subs.map((s) => s.id),
+      paymentId: payment.id,
+      status: SubscriptionStatus.PENDING_PAYMENT,
+      subtotalInr: totals.subtotalInr,
+      discountInr: totals.discountInr,
+      totalInr: totals.totalInr,
+      lineItems,
+    };
+
     if (provider === PaymentProvider.RAZORPAY) {
-      const order = await this.razorpay.createOrder(plan.amountInr * 100, payment.id);
+      const order = await this.razorpay.createOrder(totals.totalInr * 100, payment.id);
       payment.referenceNote = this.razorpay.orderReference(order.id);
       await this.payments.save(payment);
       return {
-        subscriptionId: sub.id,
-        paymentId: payment.id,
-        status: SubscriptionStatus.PENDING_PAYMENT,
+        ...baseResponse,
         message: 'Complete payment in the Razorpay window',
         razorpay: {
           keyId: this.razorpay.publicKeyId(),
@@ -410,9 +495,7 @@ export class SubscriptionsService {
     }
 
     return {
-      subscriptionId: sub.id,
-      paymentId: payment.id,
-      status: SubscriptionStatus.PENDING_PAYMENT,
+      ...baseResponse,
       message: 'Pending payment — we will activate your plan once payment is confirmed',
     };
   }

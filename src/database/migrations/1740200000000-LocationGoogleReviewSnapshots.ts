@@ -4,6 +4,7 @@ export class LocationGoogleReviewSnapshots1740200000000 implements MigrationInte
   name = 'LocationGoogleReviewSnapshots1740200000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
+    if (await queryRunner.hasTable('location_google_review_snapshots')) return;
     await queryRunner.query(`
       CREATE TABLE \`location_google_review_snapshots\` (
         \`id\` varchar(36) NOT NULL,

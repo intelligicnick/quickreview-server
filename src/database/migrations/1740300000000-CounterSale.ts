@@ -4,6 +4,7 @@ export class CounterSale1740300000000 implements MigrationInterface {
   name = 'CounterSale1740300000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
+    if (!(await queryRunner.hasTable('counter_sale_agents'))) {
     await queryRunner.query(`
       CREATE TABLE \`counter_sale_agents\` (
         \`id\` varchar(36) NOT NULL,
@@ -17,6 +18,8 @@ export class CounterSale1740300000000 implements MigrationInterface {
         PRIMARY KEY (\`id\`)
       ) ENGINE=InnoDB
     `);
+    }
+    if (!(await queryRunner.hasTable('counter_sale_provisions'))) {
     await queryRunner.query(`
       CREATE TABLE \`counter_sale_provisions\` (
         \`id\` varchar(36) NOT NULL,
@@ -33,6 +36,7 @@ export class CounterSale1740300000000 implements MigrationInterface {
         PRIMARY KEY (\`id\`)
       ) ENGINE=InnoDB
     `);
+    }
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

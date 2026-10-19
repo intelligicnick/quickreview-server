@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, ParseUUIDPipe, Post } from '@nestjs/common';
+import { ERROR_CODES } from '../common/constants';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { User } from '../users/user.entity';
 import { StartCheckoutDto } from './dto/billing.dto';
@@ -27,6 +28,13 @@ export class BillingController {
     @Param('locationId', new ParseUUIDPipe({ version: '4' })) locationId: string,
     @Body() dto: StartCheckoutDto,
   ) {
-    return this.subscriptions.startCheckout(user, locationId, dto.planId, dto.provider);
+    const planIds = dto.planIds?.length ? dto.planIds : dto.planId ? [dto.planId] : [];
+    if (planIds.length === 0) {
+      throw new BadRequestException({
+        code: ERROR_CODES.VALIDATION_ERROR,
+        message: 'Choose at least one plan',
+      });
+    }
+    return this.subscriptions.startCheckout(user, locationId, planIds, dto.provider);
   }
 }

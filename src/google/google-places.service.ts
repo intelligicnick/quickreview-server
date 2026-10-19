@@ -5,6 +5,11 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ERROR_CODES } from '../common/constants';
+import {
+  isGoogleMapsMockApiKey,
+  mockPlaceDetails,
+  mockPlacesTextSearch,
+} from './google-places.mock';
 import type { GbpLocationRow, PlaceSnapshot } from './google.types';
 
 type PlacesPlace = {
@@ -21,27 +26,12 @@ type PlacesPlace = {
   error?: { message?: string };
 };
 
-const MOCK_PLACES: Record<string, PlaceSnapshot> = {
-  ChIJMOCKPATEL001: {
-    placeId: 'ChIJMOCKPATEL001',
-    name: 'Patel Jewellers',
-    formattedAddress: 'Panvel, Maharashtra, India',
-    phone: '+912231040000',
-    website: 'https://example.com',
-    primaryType: 'jewelry_store',
-    primaryTypeDisplay: 'Jewelry store',
-    types: ['jewelry_store', 'store'],
-    rating: 4.9,
-    reviewCount: 24024,
-  },
-};
-
 @Injectable()
 export class GooglePlacesService {
   constructor(private readonly config: ConfigService) {}
 
   isMockMode(): boolean {
-    return this.config.get<string>('GOOGLE_MAPS_API_KEY')?.trim() === 'mock';
+    return isGoogleMapsMockApiKey(this.config.get<string>('GOOGLE_MAPS_API_KEY'));
   }
 
   isConfigured(): boolean {
@@ -51,29 +41,7 @@ export class GooglePlacesService {
   async searchText(query: string): Promise<PlaceSnapshot[]> {
     const trimmed = query.trim();
     if (trimmed.length < 3) return [];
-    if (this.isMockMode()) {
-      const q = trimmed.toLowerCase();
-      const fromCatalog = Object.values(MOCK_PLACES).filter(
-        (row) =>
-          row.name.toLowerCase().includes(q) ||
-          row.formattedAddress?.toLowerCase().includes(q),
-      );
-      if (fromCatalog.length > 0) return fromCatalog;
-      return [
-        {
-          placeId: `ChIJMOCK${Buffer.from(trimmed).toString('base64url').slice(0, 12)}`,
-          name: trimmed,
-          formattedAddress: 'India (mock result — set a real GOOGLE_MAPS_API_KEY for live search)',
-          phone: null,
-          website: null,
-          primaryType: 'store',
-          primaryTypeDisplay: 'Store',
-          types: ['store'],
-          rating: 4.5,
-          reviewCount: 100,
-        },
-      ];
-    }
+    if (this.isMockMode()) return mockPlacesTextSearch(trimmed);
     const apiKey = this.config.get<string>('GOOGLE_MAPS_API_KEY')?.trim();
     if (!apiKey) {
       throw new ServiceUnavailableException({
@@ -120,22 +88,8 @@ export class GooglePlacesService {
   async fetchPlaceDetails(placeId: string): Promise<PlaceSnapshot> {
     const normalized = placeId.trim();
     if (this.isMockMode()) {
-      const mock = MOCK_PLACES[normalized];
-      if (mock) return mock;
-      if (normalized.startsWith('ChIJMOCK')) {
-        return {
-          placeId: normalized,
-          name: 'Google listing',
-          formattedAddress: 'India (mock — use a real GOOGLE_MAPS_API_KEY for live data)',
-          phone: null,
-          website: null,
-          primaryType: 'store',
-          primaryTypeDisplay: 'Store',
-          types: ['store'],
-          rating: null,
-          reviewCount: null,
-        };
-      }
+      const result = mockPlaceDetails(normalized);
+      if (result.ok) return result.place;
       throw new BadGatewayException({
         code: ERROR_CODES.NOT_FOUND,
         message: 'Unknown mock place id',
