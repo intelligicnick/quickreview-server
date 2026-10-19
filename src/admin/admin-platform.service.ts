@@ -28,6 +28,7 @@ import { PaymentKind } from '../platform/enums/payment-kind.enum';
 import { PaymentProvider } from '../platform/enums/payment-provider.enum';
 import { PaymentStatus } from '../platform/enums/payment-status.enum';
 import { SubscriptionSource } from '../platform/enums/subscription-source.enum';
+import { isTrialPlanCode } from '../platform/plan-codes';
 import { SubscriptionStatus } from '../platform/enums/subscription-status.enum';
 import { resolveMarketplaceImageUrl } from '../platform/marketplace-image-url';
 import { menuPublicUrl, qrClaimUrl, reviewPublicUrl } from '../platform/qr-target.util';
@@ -98,6 +99,12 @@ export class AdminPlatformService {
   async deskHealth() {
     const today = todayIso();
     const inThreeDays = addDaysIso(today, 3);
+    const trialPlanIds = (await this.plans.find({ select: ['id', 'code'] }))
+      .filter((row) => isTrialPlanCode(row.code))
+      .map((row) => row.id);
+    const excludeTrials =
+      trialPlanIds.length > 0 ? 'sub.planId NOT IN (:...trialPlanIds)' : '1=1';
+
     const mrrRow = await this.subscriptions
       .createQueryBuilder('sub')
       .innerJoin('sub.plan', 'plan')
@@ -106,6 +113,7 @@ export class AdminPlatformService {
       .andWhere('sub.startDate <= :today', { today })
       .andWhere('sub.endDate >= :today', { today })
       .andWhere('plan.amountInr > 0')
+      .andWhere(excludeTrials, { trialPlanIds })
       .getRawOne<{ mrrInr: string }>();
 
     const payingRow = await this.subscriptions
@@ -116,32 +124,38 @@ export class AdminPlatformService {
       .andWhere('sub.startDate <= :today', { today })
       .andWhere('sub.endDate >= :today', { today })
       .andWhere('plan.amountInr > 0')
+      .andWhere(excludeTrials, { trialPlanIds })
       .getRawOne<{ count: string }>();
 
     const merchantsTotal = await this.locations.manager.getRepository(User).count({
       where: { isSuperAdmin: false },
     });
 
-    const trialsRunning = await this.subscriptions
-      .createQueryBuilder('sub')
-      .innerJoin('sub.plan', 'plan')
-      .where('sub.status = :active', { active: SubscriptionStatus.ACTIVE })
-      .andWhere('sub.startDate <= :today', { today })
-      .andWhere('sub.endDate >= :today', { today })
-      .andWhere('plan.amountInr = 0')
-      .getCount();
+    const trialsRunning =
+      trialPlanIds.length === 0
+        ? 0
+        : await this.subscriptions
+            .createQueryBuilder('sub')
+            .where('sub.status = :active', { active: SubscriptionStatus.ACTIVE })
+            .andWhere('sub.startDate <= :today', { today })
+            .andWhere('sub.endDate >= :today', { today })
+            .andWhere('sub.planId IN (:...trialPlanIds)', { trialPlanIds })
+            .getCount();
 
-    const trialsEndingSoon = await this.subscriptions
-      .createQueryBuilder('sub')
-      .innerJoinAndSelect('sub.location', 'location')
-      .innerJoinAndSelect('sub.plan', 'plan')
-      .where('sub.status = :active', { active: SubscriptionStatus.ACTIVE })
-      .andWhere('plan.amountInr = 0')
-      .andWhere('sub.endDate >= :today', { today })
-      .andWhere('sub.endDate <= :inThreeDays', { inThreeDays })
-      .orderBy('sub.endDate', 'ASC')
-      .take(12)
-      .getMany();
+    const trialsEndingSoon =
+      trialPlanIds.length === 0
+        ? []
+        : await this.subscriptions
+            .createQueryBuilder('sub')
+            .innerJoinAndSelect('sub.location', 'location')
+            .innerJoinAndSelect('sub.plan', 'plan')
+            .where('sub.status = :active', { active: SubscriptionStatus.ACTIVE })
+            .andWhere('sub.planId IN (:...trialPlanIds)', { trialPlanIds })
+            .andWhere('sub.endDate >= :today', { today })
+            .andWhere('sub.endDate <= :inThreeDays', { inThreeDays })
+            .orderBy('sub.endDate', 'ASC')
+            .take(12)
+            .getMany();
 
     return {
       mrrInr: Number(mrrRow?.mrrInr ?? 0),
@@ -604,7 +618,8 @@ export class AdminPlatformService {
           row.status === SubscriptionStatus.ACTIVE &&
           row.startDate <= today &&
           row.endDate >= today &&
-          planAmountInr(row) > 0,
+          planAmountInr(row) > 0 &&
+          !isTrialPlanCode(row.plan?.code ?? ''),
       )
       .reduce((sum, row) => sum + planAmountInr(row), 0);
     return {

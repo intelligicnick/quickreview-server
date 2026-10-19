@@ -1,5 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
+import { activateTrialPlan } from './billing-test-helpers';
 import { createTestApp } from './create-test-app';
 import { MemoryMailService } from './memory-mail.service';
 
@@ -42,22 +43,6 @@ describe('QuickConnect (Phase 7)', () => {
     };
   }
 
-  async function activateConnectTrial(token: string, locationId: string) {
-    const plans = await request(app.getHttpServer())
-      .get('/api/billing/plans')
-      .set('Authorization', `Bearer ${token}`)
-      .expect(200);
-    const trial = plans.body.data.find(
-      (row: { code: string }) => row.code === 'quickconnect_trial',
-    );
-    expect(trial).toBeDefined();
-    await request(app.getHttpServer())
-      .post(`/api/billing/locations/${locationId}/checkout`)
-      .set('Authorization', `Bearer ${token}`)
-      .send({ planId: trial.id })
-      .expect(201);
-  }
-
   it('locks public card until QuickConnect is active', async () => {
     const { token, locationId } = await verifiedOwnerWithLocation();
 
@@ -70,7 +55,7 @@ describe('QuickConnect (Phase 7)', () => {
 
     await request(app.getHttpServer()).get(`/api/public/c/${slug}`).expect(402);
 
-    await activateConnectTrial(token, locationId);
+    await activateTrialPlan(app, mail, token, locationId, 'quickconnect_trial');
 
     const publicCard = await request(app.getHttpServer())
       .get(`/api/public/c/${slug}`)
@@ -93,7 +78,7 @@ describe('QuickConnect (Phase 7)', () => {
 
   it('creates and deletes custom links', async () => {
     const { token, locationId } = await verifiedOwnerWithLocation();
-    await activateConnectTrial(token, locationId);
+    await activateTrialPlan(app, mail, token, locationId, 'quickconnect_trial');
 
     const created = await request(app.getHttpServer())
       .post(`/api/locations/${locationId}/quickconnect/links`)

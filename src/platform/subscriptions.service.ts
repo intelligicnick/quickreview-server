@@ -339,30 +339,6 @@ export class SubscriptionsService {
       });
     }
 
-    if (plan.amountInr === 0) {
-      const today = todayIso();
-      const sub = await this.subscriptions.save(
-        this.subscriptions.create({
-          locationId: location.id,
-          userId: user.id,
-          planId: plan.id,
-          product: plan.product,
-          status: SubscriptionStatus.ACTIVE,
-          source: SubscriptionSource.COMP,
-          startDate: today,
-          endDate: addDaysIso(today, plan.durationDays),
-          amountInr: 0,
-        }),
-      );
-      await this.onPlanActivated(location.id, plan.product);
-      return {
-        subscriptionId: sub.id,
-        paymentId: null,
-        status: SubscriptionStatus.ACTIVE,
-        message: 'Plan activated',
-      };
-    }
-
     if (
       !provider ||
       (provider !== PaymentProvider.UPI &&

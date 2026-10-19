@@ -10,6 +10,7 @@ import {
   defaultAssetsForProductName,
   upgradeMarketplaceImageUrl,
 } from './marketplace-product-defaults';
+import { isTrialPlanCode } from './plan-codes';
 
 const DEFAULT_PLANS: Array<Pick<Plan, 'code' | 'name' | 'product' | 'amountInr' | 'durationDays' | 'sortOrder'>> =
   [
@@ -17,7 +18,7 @@ const DEFAULT_PLANS: Array<Pick<Plan, 'code' | 'name' | 'product' | 'amountInr' 
       code: 'quickreview_trial',
       name: 'QuickReview trial',
       product: BillingProduct.QUICK_REVIEW,
-      amountInr: 0,
+      amountInr: 65,
       durationDays: 7,
       sortOrder: 1,
     },
@@ -33,7 +34,7 @@ const DEFAULT_PLANS: Array<Pick<Plan, 'code' | 'name' | 'product' | 'amountInr' 
       code: 'quickmenu_trial',
       name: 'Quick Commerce trial',
       product: BillingProduct.QUICK_MENU,
-      amountInr: 0,
+      amountInr: 65,
       durationDays: 7,
       sortOrder: 3,
     },
@@ -49,7 +50,7 @@ const DEFAULT_PLANS: Array<Pick<Plan, 'code' | 'name' | 'product' | 'amountInr' 
       code: 'quickconnect_trial',
       name: 'QuickConnect trial',
       product: BillingProduct.QUICK_CONNECT,
-      amountInr: 0,
+      amountInr: 65,
       durationDays: 7,
       sortOrder: 4,
     },
@@ -65,7 +66,7 @@ const DEFAULT_PLANS: Array<Pick<Plan, 'code' | 'name' | 'product' | 'amountInr' 
       code: 'quickdesign_trial',
       name: 'QuickDesign trial',
       product: BillingProduct.QUICK_DESIGN,
-      amountInr: 0,
+      amountInr: 65,
       durationDays: 7,
       sortOrder: 7,
     },
@@ -81,7 +82,7 @@ const DEFAULT_PLANS: Array<Pick<Plan, 'code' | 'name' | 'product' | 'amountInr' 
       code: 'quickscan_trial',
       name: 'QuickScan trial',
       product: BillingProduct.QUICK_SCAN,
-      amountInr: 0,
+      amountInr: 65,
       durationDays: 7,
       sortOrder: 9,
     },
@@ -97,7 +98,7 @@ const DEFAULT_PLANS: Array<Pick<Plan, 'code' | 'name' | 'product' | 'amountInr' 
       code: 'quickcrm_trial',
       name: 'CRM trial',
       product: BillingProduct.QUICK_CRM,
-      amountInr: 0,
+      amountInr: 65,
       durationDays: 7,
       sortOrder: 11,
     },
@@ -171,6 +172,21 @@ export class PlatformBootstrap implements OnModuleInit {
     }
 
     await this.backfillProductAssets();
+    await this.backfillPaidTrialPlans();
+  }
+
+  /** One-time: legacy free trials (₹0) → paid intro trials from DEFAULT_PLANS seeds. */
+  private async backfillPaidTrialPlans(): Promise<void> {
+    for (const seed of DEFAULT_PLANS) {
+      if (!isTrialPlanCode(seed.code) || seed.amountInr <= 0) continue;
+      const updated = await this.plans.update(
+        { code: seed.code, amountInr: 0 },
+        { amountInr: seed.amountInr },
+      );
+      if (updated.affected && updated.affected > 0) {
+        this.logger.log(`Updated ${seed.code} from free to ₹${seed.amountInr} intro trial`);
+      }
+    }
   }
 
   private async ensureMarketplaceCategories(): Promise<Map<string, MarketplaceCategory>> {

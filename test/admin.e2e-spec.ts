@@ -156,10 +156,15 @@ describe('Super admin', () => {
       .expect(200);
     const trial = plans.body.data.find((row: { code: string }) => row.code === 'quickreview_trial');
     expect(trial).toBeDefined();
-    await request(app.getHttpServer())
+    const checkout = await request(app.getHttpServer())
       .post(`/api/billing/locations/${locationId}/checkout`)
       .set('Authorization', `Bearer ${merchant.token}`)
-      .send({ planId: trial.id })
+      .send({ planId: trial.id, provider: 'CASH' })
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(`/api/admin/payments/${checkout.body.data.paymentId}/mark-paid`)
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({ note: 'test' })
       .expect(201);
 
     await request(app.getHttpServer())

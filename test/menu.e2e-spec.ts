@@ -1,5 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
+import { activateTrialPlan } from './billing-test-helpers';
 import { createTestApp } from './create-test-app';
 import { MemoryMailService } from './memory-mail.service';
 
@@ -42,20 +43,6 @@ describe('QuickMenu (Phase 8)', () => {
     };
   }
 
-  async function activateMenuTrial(token: string, locationId: string) {
-    const plans = await request(app.getHttpServer())
-      .get('/api/billing/plans')
-      .set('Authorization', `Bearer ${token}`)
-      .expect(200);
-    const trial = plans.body.data.find((row: { code: string }) => row.code === 'quickmenu_trial');
-    expect(trial).toBeDefined();
-    await request(app.getHttpServer())
-      .post(`/api/billing/locations/${locationId}/checkout`)
-      .set('Authorization', `Bearer ${token}`)
-      .send({ planId: trial.id })
-      .expect(201);
-  }
-
   it('locks public menu until QuickMenu is active', async () => {
     const { token, locationId } = await verifiedOwnerWithLocation();
 
@@ -69,7 +56,7 @@ describe('QuickMenu (Phase 8)', () => {
 
     await request(app.getHttpServer()).get(`/api/public/menu/${slug}`).expect(402);
 
-    await activateMenuTrial(token, locationId);
+    await activateTrialPlan(app, mail, token, locationId, 'quickmenu_trial');
 
     const category = await request(app.getHttpServer())
       .post(`/api/locations/${locationId}/quickmenu/categories`)

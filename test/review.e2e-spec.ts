@@ -1,5 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
+import { activateTrialPlan } from './billing-test-helpers';
 import { createTestApp } from './create-test-app';
 import { MemoryMailService } from './memory-mail.service';
 
@@ -51,23 +52,9 @@ describe('Public QuickReview', () => {
     };
   }
 
-  async function activateTrial(token: string, locationId: string) {
-    const plans = await request(app.getHttpServer())
-      .get('/api/billing/plans')
-      .set('Authorization', `Bearer ${token}`)
-      .expect(200);
-    const trial = plans.body.data.find((row: { code: string }) => row.code === 'quickreview_trial');
-    expect(trial).toBeDefined();
-    await request(app.getHttpServer())
-      .post(`/api/billing/locations/${locationId}/checkout`)
-      .set('Authorization', `Bearer ${token}`)
-      .send({ planId: trial.id })
-      .expect(201);
-  }
-
   it('serves the public page and records private vs google paths', async () => {
     const { token, locationId, code } = await ownerWithLocation();
-    await activateTrial(token, locationId);
+    await activateTrialPlan(app, mail, token, locationId, 'quickreview_trial');
 
     const page = await request(app.getHttpServer()).get(`/api/public/r/${code}`).expect(200);
     expect(page.body.data.name).toBe('Main');

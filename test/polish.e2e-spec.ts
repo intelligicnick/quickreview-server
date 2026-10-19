@@ -3,6 +3,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import request from 'supertest';
 import { Repository } from 'typeorm';
 import { User } from '../src/users/user.entity';
+import { activateTrialPlan } from './billing-test-helpers';
 import { createTestApp } from './create-test-app';
 import { MemoryMailService } from './memory-mail.service';
 
@@ -42,19 +43,6 @@ describe('Polish — QR claim & AI drafts', () => {
       .send({ name: 'Front' })
       .expect(201);
     return { token, locationId: location.body.data.id as string };
-  }
-
-  async function activateReviewTrial(token: string, locationId: string) {
-    const plans = await request(app.getHttpServer())
-      .get('/api/billing/plans')
-      .set('Authorization', `Bearer ${token}`)
-      .expect(200);
-    const trial = plans.body.data.find((row: { code: string }) => row.code === 'quickreview_trial');
-    await request(app.getHttpServer())
-      .post(`/api/billing/locations/${locationId}/checkout`)
-      .set('Authorization', `Bearer ${token}`)
-      .send({ planId: trial.id })
-      .expect(201);
   }
 
   async function superAdminToken() {
@@ -156,7 +144,7 @@ describe('Polish — QR claim & AI drafts', () => {
 
   it('issues a merchant digital QR when QuickReview trial activates', async () => {
     const { token, locationId } = await ownerWithLocation();
-    await activateReviewTrial(token, locationId);
+    await activateTrialPlan(app, mail, token, locationId, 'quickreview_trial');
 
     const list = await request(app.getHttpServer())
       .get(`/api/locations/${locationId}/qr-codes`)
@@ -174,7 +162,7 @@ describe('Polish — QR claim & AI drafts', () => {
 
   it('returns AI draft suggestions using saved keywords', async () => {
     const { token, locationId } = await ownerWithLocation();
-    await activateReviewTrial(token, locationId);
+    await activateTrialPlan(app, mail, token, locationId, 'quickreview_trial');
 
     await request(app.getHttpServer())
       .patch(`/api/locations/${locationId}/quickreview/settings`)
@@ -203,7 +191,7 @@ describe('Polish — QR claim & AI drafts', () => {
 
   it('limits public review framing to two generations per session', async () => {
     const { token, locationId } = await ownerWithLocation();
-    await activateReviewTrial(token, locationId);
+    await activateTrialPlan(app, mail, token, locationId, 'quickreview_trial');
 
     const hub = await request(app.getHttpServer())
       .get(`/api/locations/${locationId}/quickreview`)
@@ -233,7 +221,7 @@ describe('Polish — QR claim & AI drafts', () => {
 
   it('loads QuickDesign hub for a location', async () => {
     const { token, locationId } = await ownerWithLocation();
-    await activateReviewTrial(token, locationId);
+    await activateTrialPlan(app, mail, token, locationId, 'quickreview_trial');
 
     const hub = await request(app.getHttpServer())
       .get(`/api/locations/${locationId}/quickdesign`)
@@ -245,7 +233,7 @@ describe('Polish — QR claim & AI drafts', () => {
 
   it('accepts legacy suggestions requests without answers', async () => {
     const { token, locationId } = await ownerWithLocation();
-    await activateReviewTrial(token, locationId);
+    await activateTrialPlan(app, mail, token, locationId, 'quickreview_trial');
 
     const hub = await request(app.getHttpServer())
       .get(`/api/locations/${locationId}/quickreview`)

@@ -1,5 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
+import { activateTrialPlan } from './billing-test-helpers';
 import { createTestApp } from './create-test-app';
 import { MemoryMailService } from './memory-mail.service';
 
@@ -47,20 +48,6 @@ describe('Subscription lock (Phase 5)', () => {
     };
   }
 
-  async function activateTrial(token: string, locationId: string) {
-    const plans = await request(app.getHttpServer())
-      .get('/api/billing/plans')
-      .set('Authorization', `Bearer ${token}`)
-      .expect(200);
-    const trial = plans.body.data.find((row: { code: string }) => row.code === 'quickreview_trial');
-    expect(trial).toBeDefined();
-    await request(app.getHttpServer())
-      .post(`/api/billing/locations/${locationId}/checkout`)
-      .set('Authorization', `Bearer ${token}`)
-      .send({ planId: trial.id })
-      .expect(201);
-  }
-
   it('locks public review until QuickReview is active', async () => {
     const { token, locationId, code } = await verifiedOwnerWithLocation();
 
@@ -72,7 +59,7 @@ describe('Subscription lock (Phase 5)', () => {
       .expect(200);
     expect(hubBefore.body.data.reviewUnlocked).toBe(false);
 
-    await activateTrial(token, locationId);
+    await activateTrialPlan(app, mail, token, locationId, 'quickreview_trial');
 
     await request(app.getHttpServer()).get(`/api/public/r/${code}`).expect(200);
 
