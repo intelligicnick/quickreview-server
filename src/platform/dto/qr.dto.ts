@@ -6,6 +6,6 @@ export class ClaimQrCodeDto {
   @MaxLength(12)
   code: string;
 
-  @IsIn(['review', 'menu', 'revisit'])
-  kind: 'review' | 'menu' | 'revisit';
+  @IsIn(['review', 'menu', 'revisit', 'connect'])
+  kind: 'review' | 'menu' | 'revisit' | 'connect';
 }

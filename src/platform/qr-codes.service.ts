@@ -14,11 +14,13 @@ import { MembersService } from '../members/members.service';
 import { User } from '../users/user.entity';
 import { QrCode } from './entities/qr-code.entity';
 import { BillingProduct } from './enums/billing-product.enum';
+import { ConnectProfile } from '../connect/connect-profile.entity';
+import { connectPublicUrl } from '../connect/connect.util';
 import { commerceHubPublicUrl, qrClaimUrl, revisitPublicUrl, reviewPublicUrl } from './qr-target.util';
 
 export const MERCHANT_DIGITAL_BATCH_ID = 'merchant-digital';
 
-export type QrAssignKind = 'review' | 'menu' | 'revisit';
+export type QrAssignKind = 'review' | 'menu' | 'revisit' | 'connect';
 
 @Injectable()
 export class QrCodesService {
@@ -26,6 +28,7 @@ export class QrCodesService {
     private readonly config: ConfigService,
     @InjectRepository(QrCode) private readonly qrCodes: Repository<QrCode>,
     @InjectRepository(Location) private readonly locations: Repository<Location>,
+    @InjectRepository(ConnectProfile) private readonly connectProfiles: Repository<ConnectProfile>,
     private readonly members: MembersService,
   ) {}
 
@@ -156,13 +159,25 @@ export class QrCodesService {
     const app = this.config.get<string>('APP_URL') ?? 'http://localhost:5173';
     const isMenu = kind === 'menu';
     const isRevisit = kind === 'revisit';
+    const isConnect = kind === 'connect';
     qr.locationId = location.id;
-    qr.isMenuQr = isRevisit ? null : isMenu;
-    qr.targetUrl = isRevisit
-      ? revisitPublicUrl(app, location.reviewCode!)
-      : isMenu
-        ? commerceHubPublicUrl(app, slug!)
-        : reviewPublicUrl(app, location.reviewCode!);
+    qr.isMenuQr = isRevisit || isConnect ? null : isMenu;
+    if (isConnect) {
+      const profile = await this.connectProfiles.findOne({ where: { locationId: location.id } });
+      if (!profile) {
+        throw new BadRequestException({
+          code: ERROR_CODES.VALIDATION_ERROR,
+          message: 'Set up QuickConnect for this location before linking a business-card standee',
+        });
+      }
+      qr.targetUrl = connectPublicUrl(app, profile.slug);
+    } else {
+      qr.targetUrl = isRevisit
+        ? revisitPublicUrl(app, location.reviewCode!)
+        : isMenu
+          ? commerceHubPublicUrl(app, slug!)
+          : reviewPublicUrl(app, location.reviewCode!);
+    }
     qr.assignedAt = new Date();
     return this.qrCodes.save(qr);
   }

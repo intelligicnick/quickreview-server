@@ -16,6 +16,7 @@ import { MarketplaceCategory } from './entities/marketplace-category.entity';
 import { QrProduct } from './entities/qr-product.entity';
 import { Subscription } from './entities/subscription.entity';
 import { Location } from '../locations/location.entity';
+import { ConnectProfile } from '../connect/connect-profile.entity';
 import { PlatformBootstrap } from './platform.bootstrap';
 import { RazorpayService } from './razorpay.service';
 import { RazorpayWebhookController } from './razorpay-webhook.controller';
@@ -35,7 +36,7 @@ export const PLATFORM_ENTITIES = [
 @Module({
   imports: [
     MembersModule,
-    TypeOrmModule.forFeature([...PLATFORM_ENTITIES, Location]),
+    TypeOrmModule.forFeature([...PLATFORM_ENTITIES, Location, ConnectProfile]),
   ],
   controllers: [
     BillingController,
